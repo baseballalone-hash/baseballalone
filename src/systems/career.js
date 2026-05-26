@@ -120,12 +120,22 @@ export function determineMLBStartStage(score) {
   return "mlb_a";
 }
 
-// KBO 드래프트 결과 — 점수 기반 1군 / 2군 / 미지명 분기
+// KBO 드래프트 결과 — 점수 기반 1군 / 2군 / 미지명 분기.
+// round / signingBonus 는 라이브 모달용. signingBonus 단위는 만원.
 export function kboDraft(player) {
   const score = compositeScore(player);
-  if (score >= 80) return { picked: true,  stage: "pro1" };
-  if (score >= 55) return { picked: true,  stage: "pro2" };
-  return { picked: false, stage: null };
+  let stage = null, round = null, signingBonus = 0;
+  if (score >= 100)     { stage = "pro1"; round = 1; signingBonus = 50000; }
+  else if (score >= 90) { stage = "pro1"; round = 2; signingBonus = 30000; }
+  else if (score >= 80) { stage = "pro1"; round = 3; signingBonus = 18000; }
+  else if (score >= 70) { stage = "pro1"; round = 4 + Math.floor(Math.random() * 2); signingBonus = 10000; }
+  else if (score >= 55) { stage = "pro2"; round = 6 + Math.floor(Math.random() * 3); signingBonus = 5000; }
+  return {
+    picked: stage != null,
+    stage,
+    round,
+    signingBonus,
+  };
 }
 
 function pickRandom(pool, n) {

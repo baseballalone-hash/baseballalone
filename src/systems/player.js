@@ -191,22 +191,92 @@ export function applyRest(player) {
   return { ok: true, recover };
 }
 
-// 부상 객체는 severity 키만 보유. 표시용 라벨은 t("injury." + severity).
+// 부상 부위별 영향 stat — 영구 후유증(aftereffect) 적용 대상.
+// 어깨/팔꿈치 = 투수, 손목 = 타자, 무릎/발목/햄스트링/허리 = 신체 일반.
+const BODY_PART_STATS = {
+  shoulder:  [["pitcher", "velocity"], ["pitcher", "stamina"]],
+  elbow:     [["pitcher", "velocity"], ["pitcher", "breaking"]],
+  wrist:     [["batter",  "contact"],  ["batter",  "power"]],
+  knee:      [["batter",  "speed"],    ["batter",  "defense"]],
+  ankle:     [["batter",  "speed"]],
+  hamstring: [["batter",  "speed"],    ["pitcher", "stamina"]],
+  back:      [["batter",  "power"],    ["pitcher", "stamina"]],
+};
+const BODY_PART_KEYS = Object.keys(BODY_PART_STATS);
+
+function pickBodyPart() {
+  return BODY_PART_KEYS[Math.floor(Math.random() * BODY_PART_KEYS.length)];
+}
+
+// 부상 객체 — { severity, bodyPart, weeksLeft, surgery, aftereffect, _isNew }
+// 표시용 라벨은 t("injury." + severity), t("bodyPart." + bodyPart).
 // _isNew 플래그: UI 가 한 번 토스트 띄운 후 false 로 끔.
-export function applyInjury(player, forceSeverity = null) {
+// forceSeverity: 0~1 roll (옛 호출 호환)
+// opts.bodyPart: 강제 부위 (생략 시 랜덤)
+export function applyInjury(player, forceSeverity = null, opts = {}) {
   const roll = forceSeverity ?? Math.random();
-  let injury;
-  if (roll < 0.65) injury = { weeksLeft: 1, severity: "minor", _isNew: true };
-  else if (roll < 0.92) injury = { weeksLeft: 3, severity: "moderate", _isNew: true };
-  else injury = { weeksLeft: 8, severity: "severe", _isNew: true };
+  let severity, baseWeeks;
+  if (roll < 0.65)      { severity = "minor";    baseWeeks = 1; }
+  else if (roll < 0.92) { severity = "moderate"; baseWeeks = 3; }
+  else                  { severity = "severe";   baseWeeks = 8; }
+
+  const bodyPart = opts.bodyPart ?? pickBodyPart();
+
+  // 토미존 / 큰 수술 — severe + (어깨|팔꿈치) + 30%
+  let surgery = false;
+  let weeksLeft = baseWeeks;
+  if (severity === "severe" && (bodyPart === "shoulder" || bodyPart === "elbow") && Math.random() < 0.30) {
+    surgery = true;
+    weeksLeft = 30; // 사실상 시즌 아웃 (25주 시즌)
+  }
+
+  // 영구 후유증 (aftereffect) 굴림
+  const aftereffectChance =
+    surgery ? 1.0
+    : severity === "severe" ? 0.6
+    : severity === "moderate" ? 0.3
+    : 0;
+  let aftereffect = null;
+  if (Math.random() < aftereffectChance) {
+    aftereffect = applyAftereffect(player, bodyPart, severity, surgery);
+  }
+
+  const injury = { severity, bodyPart, weeksLeft, surgery, aftereffect, _isNew: true };
   player.injury = injury;
-  pushLog({
-    msg: t("injury.detected", {
-      type: t("injury." + injury.severity),
-      weeks: injury.weeksLeft,
-    }),
-    kind: "bad",
-  });
+
+  if (surgery) {
+    pushLog({
+      msg: t("injury.surgery", {
+        part: t("bodyPart." + bodyPart),
+        weeks: weeksLeft,
+      }),
+      kind: "bad",
+    });
+  } else {
+    pushLog({
+      msg: t("injury.detectedWithPart", {
+        part: t("bodyPart." + bodyPart),
+        type: t("injury." + severity),
+        weeks: weeksLeft,
+      }),
+      kind: "bad",
+    });
+  }
+}
+
+// 부위에 따라 즉시 능력치 영구 감소. 회복 시점 이후로도 유지.
+function applyAftereffect(player, bodyPart, severity, surgery) {
+  const baseDelta = surgery ? 5 : severity === "severe" ? 3 : 1;
+  const affected = [];
+  for (const [group, stat] of BODY_PART_STATS[bodyPart]) {
+    const target = player[group];
+    if (target?.[stat] === undefined) continue;
+    const before = target[stat];
+    const after = Math.max(20, before - baseDelta);
+    target[stat] = +after.toFixed(1);
+    if (after !== before) affected.push({ group, stat, delta: +(after - before).toFixed(1) });
+  }
+  return { affected, surgery, severity };
 }
 
 // 주간 컨디션 변화 — 호조/슬럼프 사이클

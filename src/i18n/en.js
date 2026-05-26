@@ -39,6 +39,7 @@ export const en = {
     mlb_aaa: "AAA",
     mlb_aa:  "AA",
     mlb_a:   "Single-A",
+    military: "Military Service",
   },
 
   stat: {
@@ -101,6 +102,7 @@ export const en = {
     regular:        { label: "Regular training", desc: "Steady team practice. Reliable growth." },
     rest:           { label: "Rest",             desc: "Recover stamina and mental." },
     youth_worldcup: { label: "U-18 national team", desc: "Chance to play in the U-18 World Cup. The big stage tests you." },
+    intl_tournament: { label: "International Tournament", desc: "You were called up mid-season. Spend the offseason competing on the world stage." },
 
     outcome: {
       great: "Huge success!",
@@ -265,6 +267,36 @@ export const en = {
         ok:    "Made it to the main round — a great experience.",
         bad:   "Knocked out in the prelims. A bitter taste…",
       },
+
+      // ── International tournament (intl_tournament) ──
+      olympic_run: {
+        label: "Olympic Baseball",
+        desc:  "Selected for the Olympic team. A bronze medal or better earns military exemption.",
+        great: "Gold medal! Top of the podium. Military service exempted!",
+        ok:    "Bronze medal! Earned a spot on the podium and military exemption.",
+        bad:   "Missed the medal stand…",
+      },
+      asian_games_run: {
+        label: "Asian Games",
+        desc:  "Selected for the Asian Games team. Gold medal earns military exemption.",
+        great: "Gold medal! Military service exempted!",
+        ok:    "Silver/Bronze — a medal, but not enough for exemption.",
+        bad:   "No medal…",
+      },
+      wbc_run: {
+        label: "World Baseball Classic",
+        desc:  "Competing at the WBC against the world's best.",
+        great: "Semifinals! Made a global statement.",
+        ok:    "Advanced to the main round.",
+        bad:   "Eliminated in round one…",
+      },
+      premier12_run: {
+        label: "WBSC Premier12",
+        desc:  "Called up for the Premier12.",
+        great: "Won the tournament!",
+        ok:    "Strong showing in the main round.",
+        bad:   "Early exit…",
+      },
     },
   },
 
@@ -296,6 +328,92 @@ export const en = {
     rookie:       "Rookie of the Year",
     mvp:          "MVP",
     twoWayMvp:    "Two-Way MVP",
+    goldenGlove:  "Golden Glove",
+  },
+
+  // Single-game / career milestones (milestones.js)
+  milestone: {
+    cycling:     "Cycle!",
+    grandSlam:   "Grand Slam!",
+    perfectGame: "Perfect Game!",
+    noHitter:    "No-Hitter!",
+    shutout:     "Shutout Win!",
+    career: {
+      h:  "Career {n} hits!",
+      hr: "Career {n} HR!",
+      pK: "Career {n} strikeouts!",
+      w:  "Career {n} wins!",
+    },
+  },
+
+  // One-shot toasts
+  toast: {
+    hbpInjury: "Hit by pitch — injured! ({type})",
+  },
+
+  // Mentor / Rival (relations.js)
+  relations: {
+    title:      "Relations",
+    mentor:     "Mentor",
+    rival:      "Rival",
+    retired:    "Retired",
+    activeLine: "Age {age} · {role}",
+    role: {
+      batter:  "Batter",
+      pitcher: "Pitcher",
+    },
+  },
+
+  // Postseason (postseason.js)
+  postseason: {
+    title: {
+      wc:  "Wild Card",
+      spo: "Semi-Playoff",
+      po:  "Playoffs",
+      ks:  "Korean Series",
+      ds:  "Division Series",
+      cs:  "League Championship",
+      ws:  "World Series",
+    },
+    announceDesc: "Single-elimination vs {opponent}.",
+    btnPlay:      "Start Game",
+    winLabel:     "Win!",
+    loseLabel:    "Loss",
+    rewardTitle:  "Round Reward",
+    btnNextRound: "Next Round",
+    btnEnd:       "Continue",
+  },
+
+  // Military service (military.js)
+  military: {
+    title: "Military Service",
+    desc:  "Pro players must fulfill their military duty. How will you serve?",
+    option: {
+      sangmu:         "Sangmu (Armed Forces team)",
+      police:         "Police Baseball Team",
+      public_service: "Public Service",
+    },
+    optionDesc: {
+      sangmu:         "First-team level training. Light penalty. 2-season tour.",
+      police:         "Pro-style training environment. Light penalty. 2-season tour.",
+      public_service: "Limited training. Heavier stat loss and reputation hit. 2 seasons.",
+    },
+    reason: {
+      olympics_gold:    "Olympic Gold",
+      olympics_bronze:  "Olympic Bronze+",
+      asian_games_gold: "Asian Games Gold",
+    },
+    exempt:    "Military exemption! ({reason})",
+    completed: "Returned to the team after {option} duty.",
+  },
+
+  // In-season events (seasonEvents.js)
+  seasonEvent: {
+    all_star:    "Selected for All-Star Game!",
+    wbc:         "Called up for the World Baseball Classic!",
+    olympics:    "Olympic Baseball — national team call-up!",
+    asian_games: "Asian Games — national team call-up!",
+    premier12:   "Premier12 — national team call-up!",
   },
 
   // At-bat outcomes (simulator → events.type)
@@ -347,10 +465,24 @@ export const en = {
     moderate: "Sprain",
     severe: "Ligament damage",
     detected: "{type} injury! (est. {weeks}w)",
+    detectedWithPart: "{part} {type}! (est. {weeks}w)",
+    surgery: "Tommy John surgery — out for the season ({weeks}w)",
+    aftereffect: "Lingering aftereffect — permanent stat loss",
     recovered: "Recovered from {type}.",
     returned:  "Back from {type} injury.",
     inProgress: "Injured ({type}, {weeks}w)",
     restOnly: "Only rest is available while injured.",
+  },
+
+  // Body parts (player.js applyInjury — bodyPart)
+  bodyPart: {
+    shoulder:  "Shoulder",
+    elbow:     "Elbow",
+    wrist:     "Wrist",
+    knee:      "Knee",
+    ankle:     "Ankle",
+    hamstring: "Hamstring",
+    back:      "Back",
   },
 
   reason: {
@@ -397,6 +529,19 @@ export const en = {
 
     draftPicked:    "Drafted to {stage}!",
     draftUndrafted: "Undrafted — career ends.",
+
+    // Live draft modal
+    draftTitle:        "KBO Rookie Draft",
+    draftAnnounceDesc: "The KBO Rookie Draft is about to begin.",
+    draftStartBtn:     "Start Draft",
+    draftRoundLine:    "R{round} · {team}: {name}",
+    draftMyPickLine:   "R{round} · {team}: YOU are drafted!",
+    draftPickedTitle:  "Drafted in Round {round}!",
+    draftPickedDesc:   "{team} ({stage}) · Signing bonus {bonus}",
+    draftUndraftedTitle: "Undrafted",
+    draftUndraftedDesc:  "10 rounds passed with no call. Your career ends here.",
+    draftResultBtn:    "Join the team",
+    draftRetireBtn:    "Retire",
   },
 
   menu: {

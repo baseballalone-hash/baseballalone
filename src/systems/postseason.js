@@ -1,0 +1,154 @@
+// 포스트시즌 시스템 — 시즌 종료 시 pro1/mlb 단계에서 트리거.
+// 단순화: 각 라운드를 단판 시뮬레이션으로 처리 (finals.js 패턴 재사용).
+//
+// 흐름:
+//   1. week.js endWeek 의 season.finished=true 직후 checkPostseasonAdvance() 호출
+//   2. 우리 팀 순위로 시작 라운드 결정. 진출 X 면 null.
+//   3. state.pendingPostseason 세팅 → weekly.js 가 모달 진행
+//   4. 라운드 우승 시 다음 라운드로, 패배 시 시즌 종료.
+//
+// KBO: wc(와카) → spo(준PO) → po(PO) → ks(한국시리즈)
+//   순위 1=ks, 2=po, 3=spo, 4·5=wc
+// MLB: wc → ds → cs → ws
+//   순위 1·2=ds, 3·4·5·6=wc
+
+import { state } from "../state.js";
+import { getPlayerTeam, standings } from "./league.js";
+import { simulateGame } from "./simulator.js";
+import { createRoster } from "./npc.js";
+import { getTeamPool } from "../data/teams.js";
+import { BATTER_STATS, PITCHER_STATS, getPlayerStatCap } from "./player.js";
+
+const STAT_MIN = 20;
+
+export const KBO_BRACKET = ["wc", "spo", "po", "ks"];
+export const MLB_BRACKET = ["wc", "ds", "cs", "ws"];
+
+function bracketForStage(stage) {
+  if (stage === "pro1") return KBO_BRACKET;
+  if (stage === "mlb")  return MLB_BRACKET;
+  return null;
+}
+
+function startRoundForRank(stage, rank) {
+  if (stage === "pro1") {
+    if (rank === 1)              return "ks";
+    if (rank === 2)              return "po";
+    if (rank === 3)              return "spo";
+    if (rank === 4 || rank === 5) return "wc";
+    return null;
+  }
+  if (stage === "mlb") {
+    if (rank === 1 || rank === 2) return "ds";
+    if (rank >= 3 && rank <= 6)   return "wc";
+    return null;
+  }
+  return null;
+}
+
+// 시즌 종료 시 호출 — 진출 자격 있으면 state.pendingPostseason 객체 반환
+export function checkPostseasonAdvance(player, league) {
+  if (!player || !league) return null;
+  if (player.stage !== "pro1" && player.stage !== "mlb") return null;
+
+  const myTeam = getPlayerTeam(league);
+  if (!myTeam) return null;
+  const stng = standings(league);
+  const rank = stng.findIndex(t => t.name === myTeam.name) + 1;
+  if (rank === 0) return null;
+
+  const startRound = startRoundForRank(player.stage, rank);
+  if (!startRound) return null;
+
+  return {
+    bracket: bracketForStage(player.stage),
+    round: startRound,
+    rank,
+    teamStrength: myTeam.strength ?? 70,
+    opponent: makeOpponentForRound(myTeam.strength ?? 70, startRound, player.stage),
+    status: "announce",  // announce → playing → result
+    result: null,
+    completedRounds: [],  // [{round, won, scoreMy, scoreOpp}]
+    stage: player.stage,
+  };
+}
+
+// 라운드 진행 후 다음 라운드 세팅 — 같은 pendingPostseason 객체를 갱신.
+export function advanceToNextRound(ps) {
+  const idx = ps.bracket.indexOf(ps.round);
+  if (idx < 0 || idx >= ps.bracket.length - 1) return false;
+  ps.round = ps.bracket[idx + 1];
+  ps.status = "announce";
+  ps.result = null;
+  ps.opponent = makeOpponentForRound(ps.teamStrength, ps.round, ps.stage);
+  return true;
+}
+
+function makeOpponentForRound(myStrength, round, stage) {
+  const bonus = { wc: 0, spo: 4, po: 8, ks: 12, ds: 6, cs: 12, ws: 18 }[round] ?? 0;
+  const strength = Math.max(60, myStrength + bonus);
+  const locale = state?.locale ?? "ko";
+  const poolStage = stage === "pro1" ? "pro1" : "mlb";
+  const pool = getTeamPool(poolStage, locale);
+  const pick = pool?.[Math.floor(Math.random() * (pool?.length || 1))];
+  const ageRange = stage === "pro1" ? [22, 36] : [22, 38];
+  return {
+    id: -200,
+    name: pick?.name ?? "Opponent",
+    region: pick?.region,
+    strength,
+    roster: createRoster(strength, ageRange),
+    record: { w: 0, l: 0, t: 0 },
+    isPlayerTeam: false,
+  };
+}
+
+// 라운드 단판 시뮬레이션
+export function simulatePostseasonGame(player, league, opponent, stage) {
+  const myTeam = getPlayerTeam(league);
+  if (!myTeam) return null;
+  const seriesStage = (stage === "pro1") ? "pro1_final" : "mlb_final";
+  const tempLeague = {
+    stage: seriesStage,
+    teams: [myTeam, opponent],
+    schedule: [],
+    weeksPerSeason: 1,
+    gamesPerWeek: 1,
+  };
+  const gameDef = { home: myTeam.id, away: opponent.id };
+  return simulateGame(tempLeague, gameDef, player);
+}
+
+// 라운드 승/패 보상 — 우승만 보상 부여. ks/ws 는 큰 보상.
+export function applyRoundReward(player, round, won) {
+  if (!won) return [];
+  const baseFame = { wc: 5, spo: 8, po: 12, ks: 30, ds: 8, cs: 15, ws: 35 }[round] ?? 5;
+  const baseStat = { wc: 1, spo: 2, po: 2, ks: 4, ds: 2, cs: 3, ws: 5 }[round] ?? 1;
+
+  const cap = getPlayerStatCap(player);
+  const changes = [];
+  function bump(group, stat, delta) {
+    if (player[group]?.[stat] === undefined) return;
+    const before = player[group][stat];
+    const after = Math.max(STAT_MIN, Math.min(cap, before + delta));
+    player[group][stat] = +after.toFixed(1);
+    if (after !== before) changes.push({ group, stat, delta: +(after - before).toFixed(1) });
+  }
+
+  for (const s of BATTER_STATS)  bump("batter",  s, baseStat);
+  for (const s of PITCHER_STATS) bump("pitcher", s, baseStat);
+  player.fame = (player.fame ?? 0) + baseFame;
+  changes.push({ group: "meta", stat: "fame", delta: baseFame });
+
+  // 챔피언십(ks/ws) 우승 — 우승 기록 누적 (player.championships)
+  if (round === "ks" || round === "ws") {
+    player.championships = player.championships ?? [];
+    player.championships.push({
+      round,
+      year: state.gameDate?.year ?? null,
+      stage: player.stage,
+    });
+  }
+
+  return changes;
+}

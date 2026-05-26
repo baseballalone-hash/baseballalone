@@ -15,10 +15,15 @@ import { AUTO_PRESETS, autoFillWeek } from "../systems/autoTrain.js";
 import { CATEGORY_KEYS, applyCategoryAndPickEvent, applyEventChoice, getAvailableCategories } from "../systems/offseason.js";
 import { appearanceChance } from "../systems/simulator.js";
 import { createRadarSVG } from "../render/radar.js";
-import { formatGameDate, t } from "../i18n/index.js";
+import { formatGameDate, t, getLocale } from "../i18n/index.js";
 import { getActiveTournaments } from "../data/tournaments.js";
 import { simulateFinal, applyFinalReward } from "../systems/finals.js";
 import { createPOVScene, pulseDiamondHome } from "../render/finalAnim.js";
+import { randomName } from "../data/names.js";
+import { getTeamPool } from "../data/teams.js";
+import { checkMilitaryTrigger, applyMilitaryService, MILITARY_OPTIONS } from "../systems/military.js";
+import { simulatePostseasonGame, applyRoundReward, advanceToNextRound } from "../systems/postseason.js";
+import { getMentor, getRival, relationOverall } from "../systems/relations.js";
 
 export function renderWeekly(root, route, opts = {}) {
   const { player, league, season } = state;
@@ -29,6 +34,8 @@ export function renderWeekly(root, route, opts = {}) {
     renderSeasonEnd(root, route);
     // 시즌 종료와 같은 주에 발동된 결승(예: 주작기)은 시즌종료 화면 위에 모달로 띄움
     showFinalModalIfNeeded(route);
+    // 포스트시즌 진출이면 시즌종료 화면 위에 모달로
+    showPostseasonModalIfNeeded(route);
     return;
   }
 
@@ -528,6 +535,13 @@ function renderWeeklyCarousel(route, player, league, season) {
       render: () => renderStandingsBody(league),
     },
   ];
+  // 멘토/라이벌 슬라이드 — 1학년 첫 시즌 종료 후 생성됐을 때만 노출
+  if (player.relations) {
+    slides.push({
+      title: t("relations.title"),
+      render: () => renderRelationsBody(player),
+    });
+  }
   if (weeklyCarouselIdx >= slides.length) weeklyCarouselIdx = 0;
   return renderCarousel(slides, {
     get: () => weeklyCarouselIdx,
@@ -1341,16 +1355,31 @@ function showToast(msg, kind = "good") {
   setTimeout(() => el.remove(), 2300);
 }
 
-// 부상 토스트 — applyInjury 에서 set 한 _isNew 플래그를 감지해 한 번만 띄움
+// 부상 토스트 — applyInjury 에서 set 한 _isNew 플래그를 감지해 한 번만 띄움.
+// 부위/수술/후유증 정보가 있으면 우선 노출.
 function showInjuryToastIfNeeded() {
   const inj = state.player?.injury;
-  if (inj?._isNew) {
+  if (!inj?._isNew) return;
+
+  if (inj.surgery) {
+    showToast(t("injury.surgery", { weeks: inj.weeksLeft }), "bad");
+  } else if (inj.bodyPart) {
+    showToast(t("injury.detectedWithPart", {
+      part: t("bodyPart." + inj.bodyPart),
+      type: t("injury." + inj.severity),
+      weeks: inj.weeksLeft,
+    }), "bad");
+  } else {
     showToast(t("injury.detected", {
       type: t("injury." + inj.severity),
       weeks: inj.weeksLeft,
     }), "bad");
-    inj._isNew = false;
   }
+
+  if (inj.aftereffect && inj.aftereffect.affected?.length > 0) {
+    setTimeout(() => showToast(t("injury.aftereffect"), "bad"), 600);
+  }
+  inj._isNew = false;
 }
 
 // pendingToasts 큐를 소비 — 여러 개면 시간 차로 띄움.
@@ -1685,11 +1714,21 @@ function showOffseasonModal(route) {
       buildOffseasonResultPhase(dialog, rerender, () => {
         // "다음 연차 진행하기" — autoMode 는 이전 시즌 설정 그대로 유지
         advanceToNextSeason();
-        transitionAfterSeason();
-        state.offseason = null;
-        saveGame();
-        backdrop.remove();
-        route("weekly");
+        // 군 입대 트리거 — pro1/pro2, 만 27세, 미완료. 면제면 토스트 후 false.
+        // ageUp 은 transitionAfterSeason 안에서가 아니라 advanceToNextSeason 안에서 일어남.
+        const needsMilitary = checkMilitaryTrigger(state.player);
+        const proceedAfterMilitary = () => {
+          transitionAfterSeason();
+          state.offseason = null;
+          saveGame();
+          backdrop.remove();
+          route("weekly");
+        };
+        if (needsMilitary) {
+          openMilitaryModal(state.player, proceedAfterMilitary);
+        } else {
+          proceedAfterMilitary();
+        }
       });
     }
   }
@@ -2007,34 +2046,147 @@ function chooseCareerPath(key, eligible, route) {
     return;
   }
   if (key === "kbo") {
-    const draft = kboDraft(state.player);
-    if (!draft.picked) {
-      pushToast(t("careerPath.draftUndrafted"), "bad");
-      proceed("retire");
-      return;
-    }
-    pushToast(t("careerPath.draftPicked", { stage: t("stage." + draft.stage) }), "good");
-    proceed(draft.stage);
+    openDraftLiveModal(state.player, (draft) => {
+      if (!draft.picked) proceed("retire");
+      else               proceed(draft.stage, draft.teamName);
+    });
     return;
   }
   if (key === "mlb") {
     openMLBOfferModal(eligible.mlbOffers, (chosenTeam) => {
       if (!chosenTeam) {
-        // 거절 → KBO 드래프트로 fallback
-        const draft = kboDraft(state.player);
-        if (!draft.picked) {
-          pushToast(t("careerPath.draftUndrafted"), "bad");
-          proceed("retire");
-        } else {
-          pushToast(t("careerPath.draftPicked", { stage: t("stage." + draft.stage) }), "good");
-          proceed(draft.stage);
-        }
+        // 거절 → KBO 드래프트 라이브 모달로 fallback
+        openDraftLiveModal(state.player, (draft) => {
+          if (!draft.picked) proceed("retire");
+          else               proceed(draft.stage, draft.teamName);
+        });
       } else {
         const startStage = determineMLBStartStage(compositeScore(state.player));
         proceed(startStage, chosenTeam.name);
       }
     });
   }
+}
+
+// KBO 드래프트 라이브 모달 — 라운드별 픽 라인 누적 → 본인 호명 → 결과 카드.
+// onClose 콜백에 { picked, stage, round, signingBonus, teamName } 전달.
+function openDraftLiveModal(player, onClose) {
+  const draft = kboDraft(player);
+  const locale = getLocale();
+  const teamPool = getTeamPool("pro1", locale);
+  const teamNames = teamPool.map(t => t.name);
+  const myTeamName = draft.picked
+    ? teamNames[Math.floor(Math.random() * teamNames.length)]
+    : null;
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  const dialog = document.createElement("div");
+  dialog.className = "modal-dialog";
+  dialog.style.position = "relative";
+  dialog.style.maxWidth = "360px";
+
+  let status = "announce";
+  const linesContainer = document.createElement("div");
+  linesContainer.style.cssText = "max-height:220px; overflow-y:auto; padding:8px; background:var(--panel-2); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1.7; margin:12px 0;";
+
+  function rerender() {
+    dialog.innerHTML = "";
+    const h = document.createElement("h2");
+    h.textContent = t("careerPath.draftTitle");
+    dialog.appendChild(h);
+
+    if (status === "announce") {
+      const desc = document.createElement("p");
+      desc.className = "muted small";
+      desc.style.margin = "0 0 14px";
+      desc.style.lineHeight = "1.5";
+      desc.textContent = t("careerPath.draftAnnounceDesc");
+      dialog.appendChild(desc);
+
+      const btn = document.createElement("button");
+      btn.className = "primary";
+      btn.style.cssText = "width:100%; padding:12px; font-weight:700;";
+      btn.textContent = t("careerPath.draftStartBtn");
+      btn.addEventListener("pointerdown", e => {
+        e.preventDefault();
+        status = "picking";
+        rerender();
+        startPicking();
+      });
+      dialog.appendChild(btn);
+    } else if (status === "picking") {
+      dialog.appendChild(linesContainer);
+    } else {
+      dialog.appendChild(linesContainer);
+      const title = document.createElement("h3");
+      title.style.cssText = "margin:12px 0 4px; color:var(--accent); font-size:14px;";
+      title.textContent = draft.picked
+        ? t("careerPath.draftPickedTitle", { round: draft.round })
+        : t("careerPath.draftUndraftedTitle");
+      dialog.appendChild(title);
+
+      const desc = document.createElement("p");
+      desc.className = "muted small";
+      desc.style.margin = "0 0 14px";
+      desc.style.lineHeight = "1.5";
+      desc.textContent = draft.picked
+        ? t("careerPath.draftPickedDesc", {
+            team: myTeamName,
+            stage: t("stage." + draft.stage),
+            bonus: draft.signingBonus.toLocaleString(),
+          })
+        : t("careerPath.draftUndraftedDesc");
+      dialog.appendChild(desc);
+
+      const btn = document.createElement("button");
+      btn.className = "primary";
+      btn.style.cssText = "width:100%; padding:12px; font-weight:700;";
+      btn.textContent = draft.picked ? t("careerPath.draftResultBtn") : t("careerPath.draftRetireBtn");
+      btn.addEventListener("pointerdown", e => {
+        e.preventDefault();
+        backdrop.remove();
+        onClose({ ...draft, teamName: myTeamName });
+      });
+      dialog.appendChild(btn);
+    }
+  }
+
+  function addLine(html, highlight = false) {
+    const line = document.createElement("div");
+    if (highlight) line.style.cssText = "color:var(--accent); font-weight:700; padding:4px 0; border-top:1px solid var(--accent); border-bottom:1px solid var(--accent); margin:4px 0;";
+    line.innerHTML = html;
+    linesContainer.appendChild(line);
+    linesContainer.scrollTop = linesContainer.scrollHeight;
+  }
+
+  function startPicking() {
+    const maxRound = draft.picked ? draft.round : 10;
+    let r = 1;
+    function step() {
+      if (r > maxRound) {
+        status = "result";
+        rerender();
+        return;
+      }
+      const isMyRound = (r === maxRound && draft.picked);
+      if (isMyRound) {
+        addLine(t("careerPath.draftMyPickLine", { round: r, team: myTeamName }), true);
+      } else {
+        const others = teamNames.filter(n => n !== myTeamName);
+        const otherTeam = others[Math.floor(Math.random() * others.length)];
+        const fakeName = randomName(locale);
+        addLine(t("careerPath.draftRoundLine", { round: r, team: otherTeam, name: fakeName }));
+      }
+      r++;
+      setTimeout(step, 600);
+    }
+    step();
+  }
+
+  rerender();
+  backdrop.appendChild(dialog);
+  document.body.appendChild(backdrop);
 }
 
 // MLB 오퍼 모달 — 팀 목록 + 수락(팀 선택)/거절. 거절 시 onChoose(null).
@@ -2075,6 +2227,228 @@ function openMLBOfferModal(offers, onChoose) {
   reject.textContent = t("careerPath.mlbReject");
   reject.addEventListener("pointerdown", e => { e.preventDefault(); pick(null); });
   dialog.appendChild(reject);
+
+  backdrop.appendChild(dialog);
+  document.body.appendChild(backdrop);
+}
+
+// 멘토/라이벌 슬라이드 — relations 가 있을 때만 노출
+function renderRelationsBody(player) {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "display:flex; flex-direction:column; gap:8px; padding:4px;";
+
+  function card(npc, accentVar) {
+    const c = document.createElement("div");
+    c.style.cssText = `background:var(--panel-2); border:1px solid var(--border); border-left:3px solid ${accentVar}; border-radius:8px; padding:10px;`;
+
+    const head = document.createElement("div");
+    head.style.cssText = "display:flex; justify-content:space-between; align-items:baseline;";
+    const left = document.createElement("div");
+    const label = document.createElement("span");
+    label.style.cssText = `font-size:11px; color:${accentVar}; font-weight:700; margin-right:6px;`;
+    label.textContent = t("relations." + npc.relation);
+    const name = document.createElement("span");
+    name.style.cssText = "font-weight:700; font-size:14px;";
+    name.textContent = npc.name;
+    left.appendChild(label);
+    left.appendChild(name);
+    head.appendChild(left);
+
+    const status = document.createElement("span");
+    status.style.cssText = "font-size:10px; color:var(--muted);";
+    status.textContent = npc.status === "retired"
+      ? t("relations.retired")
+      : t("relations.activeLine", { age: npc.age, role: t("relations.role." + npc.role) });
+    head.appendChild(status);
+    c.appendChild(head);
+
+    if (npc.status !== "retired") {
+      const ovrLine = document.createElement("div");
+      ovrLine.style.cssText = "margin-top:6px; font-size:11px;";
+      ovrLine.innerHTML = `<span style="color:var(--muted)">OVR:</span> <span style="font-weight:700">${relationOverall(npc)}</span>`;
+      c.appendChild(ovrLine);
+    }
+    return c;
+  }
+
+  const mentor = getMentor(player);
+  const rival  = getRival(player);
+  if (mentor) wrap.appendChild(card(mentor, "var(--accent-2)"));
+  if (rival)  wrap.appendChild(card(rival,  "var(--accent)"));
+  return wrap;
+}
+
+// 포스트시즌 모달 — 시즌 종료 시 pro1/mlb 진출 자격이 있으면 발동.
+// announce → result 반복 (라운드별). 우승 시 다음 라운드, 패배 시 종료.
+let _postseasonModalShown = false;
+function showPostseasonModalIfNeeded(route) {
+  const ps = state.pendingPostseason;
+  if (!ps || _postseasonModalShown) return;
+  _postseasonModalShown = true;
+
+  state.paused = true;
+  saveGame();
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  const dialog = document.createElement("div");
+  dialog.className = "modal-dialog";
+  dialog.style.position = "relative";
+  dialog.style.maxWidth = "360px";
+
+  function rerender() {
+    dialog.innerHTML = "";
+    const h = document.createElement("h2");
+    h.textContent = t("postseason.title." + ps.round);
+    dialog.appendChild(h);
+
+    if (ps.status === "announce") {
+      const desc = document.createElement("p");
+      desc.className = "muted small";
+      desc.style.margin = "0 0 12px";
+      desc.style.lineHeight = "1.5";
+      desc.textContent = t("postseason.announceDesc", { opponent: ps.opponent.name });
+      dialog.appendChild(desc);
+
+      // 지난 라운드 누적 결과
+      if (ps.completedRounds && ps.completedRounds.length > 0) {
+        const box = document.createElement("div");
+        box.style.cssText = "background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:12px; font-size:11px;";
+        for (const r of ps.completedRounds) {
+          const line = document.createElement("div");
+          line.style.padding = "2px 0";
+          line.style.color = r.won ? "var(--good)" : "var(--bad)";
+          line.textContent = `${t("postseason.title." + r.round)} — ${r.won ? "W" : "L"} ${r.scoreMy}-${r.scoreOpp}`;
+          box.appendChild(line);
+        }
+        dialog.appendChild(box);
+      }
+
+      const btn = document.createElement("button");
+      btn.className = "primary";
+      btn.style.cssText = "width:100%; padding:12px; font-weight:700;";
+      btn.textContent = t("postseason.btnPlay");
+      btn.addEventListener("pointerdown", e => {
+        e.preventDefault();
+        ps.result = simulatePostseasonGame(state.player, state.league, ps.opponent, ps.stage);
+        ps.status = "result";
+        saveGame();
+        rerender();
+      });
+      dialog.appendChild(btn);
+    } else if (ps.status === "result") {
+      const r = ps.result;
+      const myEntry  = r.home.team.isPlayerTeam ? r.home : r.away;
+      const oppEntry = myEntry === r.home ? r.away : r.home;
+      const won = r.winner === myEntry.team.name;
+
+      // 결과 카드
+      const resCard = document.createElement("div");
+      resCard.style.cssText = `background:var(--panel-2); border:1px solid var(--${won ? "good" : "bad"}); border-radius:8px; padding:14px; margin-bottom:12px; text-align:center;`;
+      const title = document.createElement("div");
+      title.style.cssText = `font-size:22px; font-weight:800; color:var(--${won ? "good" : "bad"}); margin-bottom:6px;`;
+      title.textContent = won ? t("postseason.winLabel") : t("postseason.loseLabel");
+      resCard.appendChild(title);
+      const score = document.createElement("div");
+      score.style.cssText = "font-size:18px; font-weight:700;";
+      score.textContent = `${myEntry.team.name} ${myEntry.score} — ${oppEntry.score} ${oppEntry.team.name}`;
+      resCard.appendChild(score);
+      dialog.appendChild(resCard);
+
+      // 결과 처리는 한 번만 — pendingResult 처리 플래그
+      if (!ps._resultProcessed) {
+        const changes = applyRoundReward(state.player, ps.round, won);
+        ps.completedRounds = ps.completedRounds ?? [];
+        ps.completedRounds.push({ round: ps.round, won, scoreMy: myEntry.score, scoreOpp: oppEntry.score });
+        ps._resultProcessed = true;
+        ps._lastChanges = changes;
+      }
+      const changes = ps._lastChanges ?? [];
+      const fameChange = changes.find(c => c.group === "meta" && c.stat === "fame");
+      if (fameChange) {
+        const reward = document.createElement("div");
+        reward.style.cssText = "background:var(--panel-2); border-radius:6px; padding:8px; margin-bottom:12px; font-size:11px;";
+        const header = document.createElement("div");
+        header.style.cssText = "font-size:11px; color:var(--accent-2); font-weight:700; margin-bottom:4px;";
+        header.textContent = t("postseason.rewardTitle");
+        reward.appendChild(header);
+        const line = document.createElement("div");
+        line.textContent = `${t("offseason.fame")}: +${fameChange.delta}`;
+        reward.appendChild(line);
+        dialog.appendChild(reward);
+      }
+
+      // 다음 버튼 — 우승 시 다음 라운드 / 그 외 종료
+      const btn = document.createElement("button");
+      btn.className = "primary";
+      btn.style.cssText = "width:100%; padding:12px; font-weight:700;";
+      const isFinalRound = (ps.round === "ks" || ps.round === "ws");
+      if (won && !isFinalRound) {
+        btn.textContent = t("postseason.btnNextRound");
+        btn.addEventListener("pointerdown", e => {
+          e.preventDefault();
+          advanceToNextRound(ps);
+          ps._resultProcessed = false;
+          ps._lastChanges = null;
+          saveGame();
+          rerender();
+        });
+      } else {
+        btn.textContent = t("postseason.btnEnd");
+        btn.addEventListener("pointerdown", e => {
+          e.preventDefault();
+          state.pendingPostseason = null;
+          _postseasonModalShown = false;
+          saveGame();
+          backdrop.remove();
+          route("weekly");
+        });
+      }
+      dialog.appendChild(btn);
+    }
+  }
+
+  rerender();
+  backdrop.appendChild(dialog);
+  document.body.appendChild(backdrop);
+}
+
+// 군 입대 모달 — 27세 + pro1/pro2 + 면제 자격 없음일 때 발동.
+// 옵션 선택 시 applyMilitaryService 호출 + 다음 시즌 진행 callback.
+function openMilitaryModal(player, onClose) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  const dialog = document.createElement("div");
+  dialog.className = "modal-dialog";
+  dialog.style.position = "relative";
+  dialog.style.maxWidth = "340px";
+
+  const h = document.createElement("h2");
+  h.textContent = t("military.title");
+  dialog.appendChild(h);
+
+  const desc = document.createElement("p");
+  desc.className = "muted small";
+  desc.style.margin = "0 0 14px";
+  desc.style.lineHeight = "1.5";
+  desc.textContent = t("military.desc");
+  dialog.appendChild(desc);
+
+  for (const key of Object.keys(MILITARY_OPTIONS)) {
+    const btn = document.createElement("button");
+    btn.style.cssText = "display:block; width:100%; padding:10px; margin-bottom:6px; text-align:left; background:var(--panel-2); border:1px solid var(--border); color:inherit; font-family:inherit; cursor:pointer; border-radius:6px;";
+    btn.innerHTML = `
+      <div style="font-weight:700; color:var(--accent); font-size:13px">${t("military.option." + key)}</div>
+      <div style="font-size:10px; color:var(--muted); margin-top:3px; line-height:1.4">${t("military.optionDesc." + key)}</div>
+    `;
+    btn.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      applyMilitaryService(player, key);
+      backdrop.remove();
+      onClose();
+    });
+    dialog.appendChild(btn);
+  }
 
   backdrop.appendChild(dialog);
   document.body.appendChild(backdrop);

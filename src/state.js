@@ -15,6 +15,7 @@ export const state = {
   locale: "ko",          // "ko" | "en" — i18n/index.js 에서 별도 localStorage 키로 영속화
   offseason: null,       // null | { randomEventKey, selected, outcomeKind, changes[] } — 시즌 종료 후 휴식기 단계
   pendingFinal: null,    // null | { tournamentKey, opponent, status, result, processedWeek } — 토너먼트 결승전 대기
+  pendingPostseason: null, // null | { bracket, round, opponent, status, completedRounds[] } — 포스트시즌(pro1/mlb)
   pendingToasts: [],     // [{msg, kind}] — UI 매 렌더에서 꺼내 표시
   pendingEvents: [],     // [{key, type, handlerKey, year}] — 시즌 중 이벤트 큐 (seasonEvents.js)
 };
@@ -49,6 +50,7 @@ export function saveGame() {
       gameDate: state.gameDate,
       offseason: state.offseason,
       pendingFinal: state.pendingFinal,
+      pendingPostseason: state.pendingPostseason,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
     return true;
@@ -78,6 +80,7 @@ function migrateSave(data) {
   if (data.player?.injury && !data.player.injury.severity) {
     data.player.injury.severity = "minor";
   }
+  // injury: 옛 구조엔 bodyPart 없음. 옛 부상은 표시 시 detected 로 폴백되니 그대로 둬도 됨.
 
   data.version = SAVE_VERSION;
   return data;
@@ -119,6 +122,7 @@ export function resetState() {
   state.gameDate = null;
   state.offseason = null;
   state.pendingFinal = null;
+  state.pendingPostseason = null;
   state.pendingToasts = [];
   state.pendingEvents = [];
   // locale 은 게임 리셋과 무관하게 사용자 선택을 유지

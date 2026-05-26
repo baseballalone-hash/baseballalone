@@ -97,6 +97,19 @@ export const OFFSEASON_CATEGORIES = {
     },
     pool: ["worldcup_run"],
   },
+
+  // 프로 시즌 중 발동된 국제대회 차출 — 해당 시즌 휴식기를 자동으로 대체.
+  // player.pendingTournament.key (olympics/asian_games/wbc/premier12) 에 따라
+  // 이벤트가 결정된다. 메달/우승 굴림 결과로 병역 면제가 부여될 수 있다.
+  intl_tournament: {
+    base(player) {
+      const ch = [];
+      const c1 = bump(player, "pitcher", "mental", +3); if (c1) ch.push(c1);
+      ch.push(fameBump(player, +10));
+      return ch;
+    },
+    pool: ["olympic_run", "asian_games_run", "wbc_run", "premier12_run"],
+  },
 };
 
 // 항상 노출되는 기본 카테고리. (youth_worldcup 같은 조건부는 getAvailableCategories 에서 추가)
@@ -258,6 +271,45 @@ export const EVENTS = {
     bad:   (p) => bumpAllBoth(p, -1),
   },
 
+  // ── 국제대회 (intl_tournament) — 시즌 중 차출된 경우 휴식기 자동 대체 ──
+  // 올림픽: 동메달 이상이면 병역 면제. great=금 / ok=동(여전히 면제) / bad=4위 이하.
+  olympic_run: {
+    category: "intl_tournament",
+    great: (p) => {
+      p.militaryExempt = { reason: "olympics_gold", year: state.gameDate?.year ?? null };
+      return [...bumpAllBoth(p, +4), fameBump(p, +30)];
+    },
+    ok: (p) => {
+      p.militaryExempt = { reason: "olympics_bronze", year: state.gameDate?.year ?? null };
+      return [...bumpAllBoth(p, +2), fameBump(p, +15)];
+    },
+    bad: (p) => bumpMany(p, [["pitcher","mental",-3]]),
+  },
+  // 아시안게임: 금메달이면 병역 면제. great=금(면제) / ok=은·동 / bad=4위 이하.
+  asian_games_run: {
+    category: "intl_tournament",
+    great: (p) => {
+      p.militaryExempt = { reason: "asian_games_gold", year: state.gameDate?.year ?? null };
+      return [...bumpAllBoth(p, +3), fameBump(p, +25)];
+    },
+    ok:  (p) => [...bumpMany(p, [["batter","eye",+2],["pitcher","mental",+3]]), fameBump(p, +10)],
+    bad: (p) => bumpMany(p, [["pitcher","mental",-3]]),
+  },
+  // WBC: 면제 X, 명성/멘탈 위주
+  wbc_run: {
+    category: "intl_tournament",
+    great: (p) => [...bumpAllBoth(p, +3), fameBump(p, +20)],
+    ok:    (p) => [fameBump(p, +8), ...bumpMany(p, [["pitcher","mental",+2]])],
+    bad:   (p) => bumpMany(p, [["pitcher","mental",-2]]),
+  },
+  // 프리미어12: 면제 X
+  premier12_run: {
+    category: "intl_tournament",
+    great: (p) => [...bumpAllBoth(p, +2), fameBump(p, +15)],
+    ok:    (p) => [fameBump(p, +6), ...bumpMany(p, [["pitcher","mental",+1]])],
+    bad:   (p) => bumpMany(p, [["pitcher","mental",-2]]),
+  },
+
   // ── 청소년 세계대회 (youth_worldcup) — 고3 시즌 종료 후에만 노출 ──
   worldcup_run: {
     category: "youth_worldcup",
@@ -292,8 +344,13 @@ export const EVENTS = {
 //   - stage = "high"
 //   - 종합 능력치 60 이상 (1학년이라도 잠재력 높으면 조기 발탁)
 //   - 격년(홀수년) 개최 → year % 2 === 1
-// 추후 프로 진출 시 all_star, wbc, olympics 등을 같은 패턴으로 추가 가능.
+// 프로 단계에서 시즌 중 국제대회 차출 (pendingTournament) 이 있으면 그 카테고리만 노출.
 export function getAvailableCategories(player) {
+  // 시즌 중 차출된 국제대회가 있으면 다른 옵션 없이 강제 진행
+  if (player.pendingTournament) {
+    return ["intl_tournament"];
+  }
+
   const list = [...CATEGORY_KEYS];
   const year = state.gameDate?.year;
   const isWorldCupYear = year != null && year % 2 === 1;
@@ -307,13 +364,29 @@ export function getAvailableCategories(player) {
   return list;
 }
 
+// pendingTournament.key → 해당 국제대회 이벤트 매핑
+const TOURNAMENT_EVENT_MAP = {
+  olympics:    "olympic_run",
+  asian_games: "asian_games_run",
+  wbc:         "wbc_run",
+  premier12:   "premier12_run",
+};
+
 // ─── 굴림 + 적용 ─────────────────────────────────────────────────
 // 카테고리 base 효과 적용 → eventKey 추출만 (yes/no 결정 전)
 export function applyCategoryAndPickEvent(player, categoryKey) {
   const cat = OFFSEASON_CATEGORIES[categoryKey];
   if (!cat) return { baseChanges: [], eventKey: null };
   const baseChanges = cat.base(player) ?? [];
-  const eventKey = cat.pool[Math.floor(Math.random() * cat.pool.length)];
+
+  let eventKey;
+  if (categoryKey === "intl_tournament" && player.pendingTournament) {
+    // 차출된 국제대회 종류에 맞는 이벤트 직접 매핑
+    eventKey = TOURNAMENT_EVENT_MAP[player.pendingTournament.key] ?? "wbc_run";
+    player.pendingTournament = null;
+  } else {
+    eventKey = cat.pool[Math.floor(Math.random() * cat.pool.length)];
+  }
   return { baseChanges, eventKey };
 }
 

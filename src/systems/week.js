@@ -2,9 +2,10 @@
 // 한 주: 5칸 평일 (각각 train/work/rest 선택) + 주말 자동 경기 시뮬레이션
 // 시즌 종료 시 다음 학년/단계 분기
 
-import { state, pushLog } from "../state.js";
+import { state, pushLog, pushToast } from "../state.js";
 import {
   applyTraining, applyWork, applyRest, tickConditionWeekly, ageUp, overallScore, applyGameExperience,
+  applyInjury,
 } from "./player.js";
 import { simulateGame } from "./simulator.js";
 import { getPlayerTeam, standings } from "./league.js";
@@ -12,6 +13,9 @@ import { t } from "../i18n/index.js";
 import { checkFinalAdvance } from "./finals.js";
 import { evaluateAndApplySeasonAwards } from "./awards.js";
 import { checkScheduledEvents } from "./seasonEvents.js";
+import { detectMilestones } from "./milestones.js";
+import { checkPostseasonAdvance } from "./postseason.js";
+import { initRelations, ageUpRelations } from "./relations.js";
 
 export function createSeason(stage) {
   return {
@@ -73,6 +77,27 @@ export function endWeek() {
       mergeSeasonStats(player, r.mainPlayer);
       applyGameExperience(player, r.mainPlayer);
       player.seasonStats.games++;
+
+      // 투수 등판 시 자기 팀의 승/패를 누적 — 마일스톤(통산 N승)·통산 통계용
+      if (r.mainPlayer.roles?.pitch && r.winner) {
+        const myTeam = r.home.team.isPlayerTeam ? r.home.team : r.away.team.isPlayerTeam ? r.away.team : null;
+        if (myTeam) {
+          if (r.winner === myTeam.name) player.seasonStats.w = (player.seasonStats.w ?? 0) + 1;
+          else                          player.seasonStats.l = (player.seasonStats.l ?? 0) + 1;
+        }
+      }
+
+      // HBP 부상 후처리 — simulator 가 batterBox.hbpInjurySeverity 로 굴림 결과만 실어 보냄
+      const sev = r.mainPlayer.batterBox?.hbpInjurySeverity;
+      if (sev && !player.injury) {
+        // applyInjury 의 forceSeverity 는 0~1 roll. HBP 굴림 분포를 그쪽으로 매핑.
+        const force = sev === "minor" ? 0.3 : sev === "moderate" ? 0.8 : 0.99;
+        applyInjury(player, force);
+        pushToast(t("toast.hbpInjury", { type: t("injury." + sev) }), "bad");
+      }
+
+      // 마일스톤 검출 (단경기 + 통산)
+      detectMilestones(player, r, state.gameDate);
     }
   }
   season.weekResults = results;
@@ -100,6 +125,13 @@ export function endWeek() {
       msg: t("log.seasonEnd", { stage: t("stage." + league.stage), grade: player.grade }),
       kind: "info",
     });
+    // 포스트시즌 진출 체크 — pro1/mlb 한정
+    if (!state.pendingPostseason) {
+      const ps = checkPostseasonAdvance(player, league);
+      if (ps) state.pendingPostseason = ps;
+    }
+    // 첫 시즌 종료 시점에 멘토/라이벌 생성 (이후 호출은 noop)
+    initRelations(player);
   }
   return { ok: true, results };
 }
@@ -152,6 +184,8 @@ export function advanceToNextSeason() {
   // 리셋
   player.seasonStats = emptyStatsLike(player.seasonStats);
   ageUp(player);
+  // 멘토/라이벌 진화
+  ageUpRelations(player);
   return { stage: player.stage, grade: player.grade };
 }
 

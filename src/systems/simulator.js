@@ -339,6 +339,9 @@ function playHalfInning(battingLineup, pitcher, myBox, myPbox, events, nextBatte
       ? classifyOut(bStats, bases, outs, defenseRating)
       : raw.type;
 
+    // 만루 여부 — 만루 홈런 검출용. applyResult 호출 전 캡처.
+    const basesLoadedBeforeAB = !!(bases[0] && bases[1] && bases[2]);
+
     // 통계 누적 — 주인공이 타석에 있을 때
     if (isMainBat) {
       myBox.pa++;
@@ -354,8 +357,18 @@ function playHalfInning(battingLineup, pitcher, myBox, myPbox, events, nextBatte
         myBox.h++;
         if (resolvedType === "2B") myBox.tb += 2;
         else if (resolvedType === "3B") myBox.tb += 3;
-        else if (resolvedType === "HR") { myBox.hr++; myBox.tb += 4; }
+        else if (resolvedType === "HR") {
+          myBox.hr++;
+          myBox.tb += 4;
+          // 만루 홈런 검출 — 마일스톤 토스트용
+          if (basesLoadedBeforeAB) myBox.gs = (myBox.gs ?? 0) + 1;
+        }
         else myBox.tb += 1;
+      }
+      // HBP 부상 굴림 — 후처리는 week.js 가 player 객체로 수행
+      if (resolvedType === "HBP" && Math.random() < 0.02) {
+        const r = Math.random();
+        myBox.hbpInjurySeverity = r < 0.75 ? "minor" : r < 0.95 ? "moderate" : "severe";
       }
       events.push({ inning, type: resolvedType, role: "batter" });
     }

@@ -39,6 +39,7 @@ export const ko = {
     mlb_aaa: "MLB AAA",
     mlb_aa:  "MLB AA",
     mlb_a:   "MLB 싱글A",
+    military: "군 복무",
   },
 
   stat: {
@@ -103,6 +104,7 @@ export const ko = {
     regular:        { label: "일반훈련",   desc: "팀 훈련을 충실히. 안정적인 성장." },
     rest:           { label: "휴식",       desc: "푹 쉬며 체력과 멘탈을 회복한다." },
     youth_worldcup: { label: "청소년 대표팀 차출", desc: "U-18 야구 월드컵 출전 기회. 큰 무대에서 시험받는다." },
+    intl_tournament: { label: "국가대표 차출", desc: "이번 시즌 중 차출된 국제대회로 휴식기를 보낸다. 메달은 큰 보상으로 이어진다." },
 
     // 굴림 결과 헤더 (대성공 / 무난 / 실패)
     outcome: {
@@ -269,6 +271,36 @@ export const ko = {
         ok:    "본선까지 진출. 좋은 경험이 됐다.",
         bad:   "예선 탈락. 큰 좌절을 맛봤다…",
       },
+
+      // ── 국가대표 (intl_tournament) ──
+      olympic_run: {
+        label: "올림픽 야구 출전",
+        desc:  "국가대표팀에 차출되어 올림픽 무대에 선다. 동메달 이상은 병역 면제로 이어진다.",
+        great: "금메달! 시상대 가장 높은 곳에 올랐다. 병역 면제 자격 획득!",
+        ok:    "동메달! 시상대에 올라 병역 면제 자격을 얻었다.",
+        bad:   "메달권 진입에 실패했다…",
+      },
+      asian_games_run: {
+        label: "아시안게임 출전",
+        desc:  "아시안게임 대표팀에 차출. 금메달이면 병역 면제.",
+        great: "금메달! 병역 면제 자격을 획득했다!",
+        ok:    "은/동메달 — 메달은 땄지만 면제 기준엔 미치지 못했다.",
+        bad:   "메달권 진입 실패…",
+      },
+      wbc_run: {
+        label: "월드 베이스볼 클래식 출전",
+        desc:  "WBC 본선에 출전. 세계 정상급과 겨룬다.",
+        great: "4강 진출! 세계 무대에서 위상을 알렸다.",
+        ok:    "본선까지 진출했다.",
+        bad:   "1라운드 탈락…",
+      },
+      premier12_run: {
+        label: "프리미어12 출전",
+        desc:  "WBSC 프리미어12 대표 차출.",
+        great: "우승을 차지했다!",
+        ok:    "본선까지 진출, 좋은 경험.",
+        bad:   "조기 탈락…",
+      },
     },
   },
 
@@ -300,6 +332,92 @@ export const ko = {
     rookie:       "신인왕",
     mvp:          "최우수선수상 (MVP)",
     twoWayMvp:    "양방향 MVP",
+    goldenGlove:  "골든글러브",
+  },
+
+  // 단경기·통산 마일스톤 (milestones.js)
+  milestone: {
+    cycling:     "사이클링 히트 달성!",
+    grandSlam:   "만루 홈런!",
+    perfectGame: "퍼펙트 게임!",
+    noHitter:    "노히트 노런!",
+    shutout:     "완봉승!",
+    career: {
+      h:  "통산 {n}안타 달성!",
+      hr: "통산 {n}홈런 달성!",
+      pK: "통산 {n}탈삼진 달성!",
+      w:  "통산 {n}승 달성!",
+    },
+  },
+
+  // 토스트 (단발 알림)
+  toast: {
+    hbpInjury: "사구 부상! ({type})",
+  },
+
+  // 멘토/라이벌 (relations.js)
+  relations: {
+    title:      "관계",
+    mentor:     "멘토",
+    rival:      "라이벌",
+    retired:    "은퇴",
+    activeLine: "{age}세 · {role}",
+    role: {
+      batter:  "타자",
+      pitcher: "투수",
+    },
+  },
+
+  // 포스트시즌 (postseason.js)
+  postseason: {
+    title: {
+      wc:  "와일드카드 결정전",
+      spo: "준플레이오프",
+      po:  "플레이오프",
+      ks:  "한국시리즈",
+      ds:  "디비전 시리즈",
+      cs:  "리그 챔피언십 시리즈",
+      ws:  "월드시리즈",
+    },
+    announceDesc: "{opponent} 와의 단판 승부.",
+    btnPlay:      "경기 시작",
+    winLabel:     "승리!",
+    loseLabel:    "패배",
+    rewardTitle:  "라운드 보상",
+    btnNextRound: "다음 라운드로",
+    btnEnd:       "확인",
+  },
+
+  // 군 입대 (military.js)
+  military: {
+    title: "병역 의무",
+    desc:  "프로 선수도 병역 의무를 다해야 한다. 어떤 방식으로 복무할 것인가?",
+    option: {
+      sangmu:         "상무 (국군체육부대)",
+      police:         "경찰 야구단",
+      public_service: "사회복무요원",
+    },
+    optionDesc: {
+      sangmu:         "1군 수준의 훈련량 유지. 능력치 페널티 낮음. 2시즌 복무.",
+      police:         "프로팀과 비슷한 훈련 환경. 페널티 낮음. 2시즌 복무.",
+      public_service: "훈련량 부족. 능력치 페널티 크고 명성 손실. 2시즌 복무.",
+    },
+    reason: {
+      olympics_gold:    "올림픽 금메달",
+      olympics_bronze:  "올림픽 동메달 이상",
+      asian_games_gold: "아시안게임 금메달",
+    },
+    exempt:    "병역 면제! ({reason})",
+    completed: "{option} 복무를 마치고 팀에 복귀했다.",
+  },
+
+  // 시즌 중 이벤트 (seasonEvents.js)
+  seasonEvent: {
+    all_star:    "올스타전 출전! 모든 능력치·명성 상승",
+    wbc:         "월드 베이스볼 클래식 대표 차출!",
+    olympics:    "올림픽 야구 대표 차출!",
+    asian_games: "아시안게임 대표 차출!",
+    premier12:   "프리미어12 대표 차출!",
   },
 
   // 타석 결과 (simulator → events.type)
@@ -351,10 +469,24 @@ export const ko = {
     moderate: "염좌",
     severe: "인대 손상",
     detected: "{type} 부상! ({weeks}주 예상)",
+    detectedWithPart: "{part} {type} 부상! ({weeks}주 예상)",
+    surgery: "토미존 수술 결정 — 시즌 아웃 ({weeks}주)",
+    aftereffect: "부상 후유증 — 능력치 영구 감소",
     recovered: "{type} 부상이 회복됐다.",
     returned:  "{type} 부상에서 복귀했다.",
     inProgress: "부상 중 ({type}, {weeks}주)",
     restOnly: "부상 중에는 휴식만 가능합니다.",
+  },
+
+  // 부상 부위 (player.js applyInjury — bodyPart)
+  bodyPart: {
+    shoulder:  "어깨",
+    elbow:     "팔꿈치",
+    wrist:     "손목",
+    knee:      "무릎",
+    ankle:     "발목",
+    hamstring: "햄스트링",
+    back:      "허리",
   },
 
   reason: {
@@ -401,6 +533,19 @@ export const ko = {
 
     draftPicked:    "{stage} 지명!",
     draftUndrafted: "드래프트 미지명 — 야구 인생을 마감합니다.",
+
+    // 드래프트 라이브 모달
+    draftTitle:        "KBO 신인 드래프트",
+    draftAnnounceDesc: "한국야구위원회 신인 드래프트가 시작됩니다.",
+    draftStartBtn:     "지명 시작",
+    draftRoundLine:    "{round}R · {team}: {name}",
+    draftMyPickLine:   "{round}R · {team}: 본인 지명!",
+    draftPickedTitle:  "{round}라운드 지명!",
+    draftPickedDesc:   "{team} ({stage}) · 계약금 {bonus}만원",
+    draftUndraftedTitle: "지명되지 않았다",
+    draftUndraftedDesc:  "10라운드까지 호명되지 못했다. 야구 인생이 마무리됩니다.",
+    draftResultBtn:    "팀에 합류",
+    draftRetireBtn:    "은퇴",
   },
 
   menu: {
