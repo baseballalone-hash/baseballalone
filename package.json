@@ -1,0 +1,6 @@
+{
+  "name": "baseballalone",
+  "private": true,
+  "type": "module",
+  "description": "정적 웹 게임 — probe.mjs 실행을 위해 ESM 모드만 지정. 빌드/의존성 없음."
+}
