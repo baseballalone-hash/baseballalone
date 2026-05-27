@@ -343,15 +343,19 @@ function pitcherChanceByRest(restGames) {
 
 // 코치판단 — 0~1. 1 = 정상 등판, 0.05 = 거의 안 등판.
 function coachJudgment(player, team) {
-  if (!team) return 1;
+  if (!team || !Array.isArray(team.roster)) return 1;
   const mainOvr = pitcherOVR(player);
+  if (!isFinite(mainOvr)) return 0.05;  // 메인 stat 손상 — 안전상 거의 등판 X
   const sps = team.roster.filter(p =>
-    p.role === "pitcher" && p.pos === "SP" && !p.injury
+    p.role === "pitcher" && p.pos === "SP" && !p.injury && p.pitcher
   );
   if (sps.length === 0) return 1;
-  const avgSpOvr = sps.reduce((s, p) => s + npcOverall(p), 0) / sps.length;
-  if (avgSpOvr <= 0) return 1;
+  const ovrs = sps.map(p => npcOverall(p)).filter(v => isFinite(v));
+  if (ovrs.length === 0) return 1;
+  const avgSpOvr = ovrs.reduce((s, v) => s + v, 0) / ovrs.length;
+  if (!isFinite(avgSpOvr) || avgSpOvr <= 0) return 1;
   const ratio = mainOvr / avgSpOvr;
+  if (!isFinite(ratio)) return 0.05;
   if (ratio >= 1.10) return 1.00;
   if (ratio >= 0.90) return 0.70;
   if (ratio >= 0.70) return 0.30;

@@ -137,9 +137,10 @@ function buildFinalAnnounce(dialog, final, rerender) {
   lineup.style.background = "var(--panel-2)";
   lineup.style.border = "1px solid var(--border)";
   lineup.style.borderRadius = "6px";
+  const pct = v => (isFinite(v) ? Math.round(v * 100) : 0);
   lineup.innerHTML = t("weekly.finalAppearance", {
-    bat: Math.round(ch.bat * 100),
-    pit: Math.round(ch.pit * 100),
+    bat: pct(ch.bat),
+    pit: pct(ch.pit),
   });
   dialog.appendChild(lineup);
 
@@ -257,6 +258,45 @@ function buildFinalPlaying(dialog, final, rerender) {
   logBox.style.margin = "8px 0";
   dialog.appendChild(logBox);
 
+  // 6) 라이브 컨트롤 — 일시정지 + 배속. tickSpeed 토글로 라이브 속도도 동기화됨.
+  const ctrlRow = document.createElement("div");
+  ctrlRow.style.display = "flex";
+  ctrlRow.style.gap = "4px";
+  ctrlRow.style.justifyContent = "center";
+  ctrlRow.style.alignItems = "center";
+  ctrlRow.style.margin = "0 0 8px";
+  const pauseState = { paused: false };
+  const pauseBtn = document.createElement("button");
+  pauseBtn.textContent = pauseState.paused ? t("weekly.btnPlay") : t("weekly.btnPause");
+  pauseBtn.style.padding = "4px 12px";
+  pauseBtn.style.fontSize = "12px";
+  pauseBtn.style.fontWeight = "700";
+  pauseBtn.style.minWidth = "60px";
+  pauseBtn.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    pauseState.paused = !pauseState.paused;
+    pauseBtn.textContent = pauseState.paused ? t("weekly.btnPlay") : t("weekly.btnPause");
+  });
+  ctrlRow.appendChild(pauseBtn);
+  for (const sp of [{lbl: "0.5x", ms: 1000}, {lbl: "1x", ms: 500}, {lbl: "2x", ms: 250}, {lbl: "4x", ms: 125}]) {
+    const b = document.createElement("button");
+    b.textContent = sp.lbl;
+    b.style.padding = "4px 8px";
+    b.style.fontSize = "12px";
+    b.style.minWidth = "0";
+    if (state.tickSpeed === sp.ms) b.classList.add("primary");
+    b.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      state.tickSpeed = sp.ms;
+      saveGame();
+      // 다른 속도 버튼 primary 클래스 갱신
+      for (const c of ctrlRow.children) if (c !== pauseBtn) c.classList.remove("primary");
+      b.classList.add("primary");
+    });
+    ctrlRow.appendChild(b);
+  }
+  dialog.appendChild(ctrlRow);
+
   // 라이브 진행: half-inning 단위 async 루프.
   //   - 그 half에 메인 이벤트가 있으면 POV 씬으로 swap → 각 이벤트마다 1.6s 시각화 + 텍스트 로그
   //   - 메인 이벤트 없으면 다이아몬드 그대로, 점수만 빠르게 갱신
@@ -343,9 +383,16 @@ function buildFinalPlaying(dialog, final, rerender) {
     logBox.scrollTop = logBox.scrollHeight;
   }
   // 결승 모달 딜레이를 state.tickSpeed (1x=500ms) 에 비례. 4x면 모달도 0.25배 속도.
+  // pauseState.paused 가 true 이면 토글될 때까지 hold (50ms 폴링).
   function waitMs(ms) {
     const mult = (state.tickSpeed ?? 500) / 500;
-    return new Promise(r => setTimeout(r, ms * mult));
+    return new Promise(async r => {
+      await new Promise(rr => setTimeout(rr, ms * mult));
+      while (pauseState.paused && !cancelled) {
+        await new Promise(rr => setTimeout(rr, 50));
+      }
+      r();
+    });
   }
 
   async function playHalf(inning, half) {
