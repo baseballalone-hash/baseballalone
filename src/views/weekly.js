@@ -258,6 +258,11 @@ function buildFinalPlaying(dialog, final, rerender) {
   //   role=batter → 자기팀 공격 = isHome ? "bottom" : "top"
   //   role=pitcher → 자기팀 수비 = isHome ? "top" : "bottom"
   function eventHalf(ev) {
+    if (ev.type === "PIT_CHANGE") {
+      // sideIsPlayer=true: 메인측 마운드 교체 = 메인이 수비하는 half
+      // sideIsPlayer=false: 상대 마운드 교체 = 메인이 공격하는 half
+      return ev.sideIsPlayer ? (isHome ? "top" : "bottom") : (isHome ? "bottom" : "top");
+    }
     if (ev.role === "batter") return isHome ? "bottom" : "top";
     return isHome ? "top" : "bottom";
   }
@@ -285,6 +290,21 @@ function buildFinalPlaying(dialog, final, rerender) {
     updateLineScoreCell(lineScore, isMyHalf ? "my" : "opp", inning, runs);
     if (runs > 0) pulseDiamondHome(diamondNode);
   }
+  // 메인 PA 한 건이 만든 점수를 즉시 반영. half 끝 일괄 반영분에서는 빼서 중복 방지.
+  function addInstantRuns(half, n) {
+    if (!n) return;
+    const isMyHalf = (half === "top") === !isHome;
+    if (isMyHalf) {
+      myRun += n;
+      myScore.textContent = String(myRun);
+      highlight(myScore);
+    } else {
+      oppRun += n;
+      oppScore.textContent = String(oppRun);
+      highlight(oppScore);
+    }
+    if (diamondNode) pulseDiamondHome(diamondNode);
+  }
   function swapField(node) {
     while (fieldWrap.firstChild) fieldWrap.removeChild(fieldWrap.firstChild);
     fieldWrap.appendChild(node);
@@ -292,9 +312,16 @@ function buildFinalPlaying(dialog, final, rerender) {
   }
   function appendEventLog(ev) {
     const row = document.createElement("div");
-    const roleColor = ev.role === "batter" ? "var(--accent)" : "var(--accent-2)";
-    const roleLbl = ev.role === "batter" ? t("weekly.batLabel") : t("weekly.pitLabel");
-    row.innerHTML = `<span style="color:${roleColor}; font-weight:700">[${ev.inning}] ${roleLbl}</span> ${t("event." + ev.type)}`;
+    if (ev.type === "PIT_CHANGE") {
+      row.innerHTML = `<span style="color:var(--muted); font-weight:700">[${ev.inning}] ${t("event.PIT_CHANGE")}</span> ${ev.from} → <span style="color:${ev.toIsMain ? "var(--accent-2)" : "inherit"}">${ev.to}</span>`;
+    } else if (ev.type === "COLD_GAME") {
+      row.innerHTML = `<span style="color:var(--accent); font-weight:700">[${ev.inning}] ${t("event.COLD_GAME")}</span>`;
+    } else {
+      const roleColor = ev.role === "batter" ? "var(--accent)" : "var(--accent-2)";
+      const roleLbl = ev.role === "batter" ? t("weekly.batLabel") : t("weekly.pitLabel");
+      const runSuffix = (ev.runsScored ?? 0) > 0 ? ` <span style="color:var(--good); font-weight:700">+${ev.runsScored}</span>` : "";
+      row.innerHTML = `<span style="color:${roleColor}; font-weight:700">[${ev.inning}] ${roleLbl}</span> ${t("event." + ev.type)}${runSuffix}`;
+    }
     logBox.appendChild(row);
     logBox.scrollTop = logBox.scrollHeight;
   }
@@ -304,23 +331,46 @@ function buildFinalPlaying(dialog, final, rerender) {
     if (cancelled) return;
     inningTag.textContent = `${inning + 1}${half === "top" ? "회초" : "회말"}`;
     const evs = eventsForHalf(inning, half);
+    // 이 half 의 메인 이벤트들이 만든 점수의 합 — half 끝 일괄 반영분에서 빼야 함.
+    let mainRunsThisHalf = 0;
     if (evs.length > 0) {
       // role 별 mode (한 half 내에선 동일 role 로 통일됨)
-      const mode = evs[0].role === "batter" ? "bat" : "pit";
+      const mainEvs = evs.filter(e => e.role === "batter" || e.role === "pitcher");
+      const mode = mainEvs[0]?.role === "batter" ? "bat" : "pit";
       const scene = createPOVScene(mode);
       swapField(scene.el);
       for (const ev of evs) {
         if (cancelled) return;
+        if (ev.role === "system") {
+          // 투수 교체 / 콜드게임 — 로그만, 시각화 X
+          appendEventLog(ev);
+          await waitMs(360);
+          continue;
+        }
         await scene.playPitch(ev);
         appendEventLog(ev);
+        // 메인 PA 의 점수 즉시 반영
+        if (ev.runsScored > 0) {
+          mainRunsThisHalf += ev.runsScored;
+          addInstantRuns(half, ev.runsScored);
+          updateLineScoreCellAdd(lineScore, ((half === "top") === !isHome) ? "my" : "opp", inning, ev.runsScored);
+        }
         await waitMs(180);
       }
-      // 다이아몬드 복원 (펄스가 새 다이아몬드에 찍히도록 점수 갱신 전 swap)
       swapField(createDiamondSVG());
     } else {
       await waitMs(360);
     }
-    applyRuns(inning, half);
+    // half 끝 — NPC 가 만든 잔여 점수만 반영 (메인 PA 점수는 위에서 이미 반영).
+    const totalHalfRuns = runsForHalf(inning, half);
+    const remaining = Math.max(0, totalHalfRuns - mainRunsThisHalf);
+    if (remaining > 0) addInstantRuns(half, remaining);
+    // 라인 스코어는 항상 최종 점수로 동기화 (이미 메인 반영분은 increment 됐으니 전체 - 메인 만큼 추가)
+    if (remaining > 0) {
+      updateLineScoreCellAdd(lineScore, ((half === "top") === !isHome) ? "my" : "opp", inning, remaining);
+    } else if (totalHalfRuns === 0 && mainRunsThisHalf === 0) {
+      updateLineScoreCell(lineScore, ((half === "top") === !isHome) ? "my" : "opp", inning, 0);
+    }
     await waitMs(280);
   }
 
@@ -328,10 +378,15 @@ function buildFinalPlaying(dialog, final, rerender) {
     for (let i = 0; i < totalInnings; i++) {
       if (cancelled) return;
       await playHalf(i, "top");
-      // 마지막 이닝 끝내기: myInns[i] 또는 oppInns[i] 가 null 이면 그 half 는 진행 안 함
       const skipBottom = i === totalInnings - 1 && (myInns[i] === null || oppInns[i] === null);
       if (!skipBottom) {
         await playHalf(i, "bottom");
+      }
+      // 콜드게임 이벤트가 있으면 그 이닝 마지막 후 게임 종료
+      const cold = allEvents.find(e => e.type === "COLD_GAME" && e.inning === i + 1);
+      if (cold) {
+        appendEventLog(cold);
+        break;
       }
     }
     if (cancelled) return;
@@ -406,6 +461,18 @@ function updateLineScoreCell(table, side, inningIdx, runs) {
     if (runs > 0) cell.style.color = "var(--text)";
   }
   // R 누적
+  const rCell = table.querySelector(`[data-cell='${side}-R']`);
+  if (rCell) rCell.textContent = String((+rCell.textContent || 0) + runs);
+}
+
+// 라인 스코어 칸에 +N 만 누적 — 실시간 메인 PA 점수 반영용.
+function updateLineScoreCellAdd(table, side, inningIdx, runs) {
+  const cell = table.querySelector(`[data-cell='${side}-${inningIdx}']`);
+  if (cell) {
+    const cur = cell.textContent === "-" || cell.textContent === "" ? 0 : (+cell.textContent || 0);
+    cell.textContent = String(cur + runs);
+    if (cur + runs > 0) cell.style.color = "var(--text)";
+  }
   const rCell = table.querySelector(`[data-cell='${side}-R']`);
   if (rCell) rCell.textContent = String((+rCell.textContent || 0) + runs);
 }
@@ -947,7 +1014,11 @@ function renderSeasonBody(player) {
   const ba = s.ab > 0 ? (s.h / s.ab).toFixed(3).replace(/^0/, "") : ".---";
   const obp = (s.ab + s.bb) > 0 ? ((s.h + s.bb) / (s.ab + s.bb)).toFixed(3).replace(/^0/, "") : ".---";
   const slg = s.ab > 0 ? (s.tb / s.ab).toFixed(3).replace(/^0/, "") : ".---";
-  const era = s.ip > 0 ? ((s.er / s.ip) * 9).toFixed(2) : "-";
+  // IP — outs 단위 누적 (ipOuts) 우선. 없으면 ip 값(이닝) 그대로.
+  const totalOuts = s.ipOuts ?? Math.round((s.ip ?? 0) * 3);
+  const ipDisplay = totalOuts > 0 ? `${Math.floor(totalOuts / 3)}.${totalOuts % 3}` : "-";
+  const ipForEra = totalOuts / 3;
+  const era = ipForEra > 0 ? ((s.er / ipForEra) * 9).toFixed(2) : "-";
   const ops = s.ab > 0 ? (parseFloat("0" + obp) + parseFloat("0" + slg)).toFixed(3) : "-";
 
   const batCard = statBlock(t("weekly.seasonBatter"), "var(--accent)");
@@ -955,6 +1026,8 @@ function renderSeasonBody(player) {
   batCard.body.appendChild(infoBlock(t("weekly.statPa"),  s.pa,       null, "sm"));
   batCard.body.appendChild(infoBlock(t("weekly.statH"),   s.h,        null, "sm"));
   batCard.body.appendChild(infoBlock(t("weekly.statHr"),  s.hr,       null, "sm"));
+  batCard.body.appendChild(infoBlock(t("weekly.statR"),   s.r   ?? 0, null, "sm"));
+  batCard.body.appendChild(infoBlock(t("weekly.statRbi"), s.rbi ?? 0, null, "sm"));
   batCard.body.appendChild(infoBlock(t("weekly.statBa"),  ba,         null, "sm"));
   batCard.body.appendChild(infoBlock(t("weekly.statOps"), ops,        null, "sm"));
   batCard.body.appendChild(infoBlock(t("weekly.statSb"),  s.sb  ?? 0, null, "sm"));
@@ -963,10 +1036,13 @@ function renderSeasonBody(player) {
   wrap.appendChild(batCard.root);
 
   const pitCard = statBlock(t("weekly.seasonPitcher"), "var(--accent-2)");
-  pitCard.body.appendChild(infoBlock(t("weekly.statPitchG"), s.pitchG, null, "sm"));
-  pitCard.body.appendChild(infoBlock(t("weekly.statIp"),    s.ip,      null, "sm"));
-  pitCard.body.appendChild(infoBlock(t("weekly.statEra"),   era,       null, "sm"));
-  pitCard.body.appendChild(infoBlock(t("weekly.statKK"),    s.pK,      null, "sm"));
+  pitCard.body.appendChild(infoBlock(t("weekly.statPitchG"), s.pitchG,    null, "sm"));
+  pitCard.body.appendChild(infoBlock(t("weekly.statIp"),    ipDisplay,    null, "sm"));
+  pitCard.body.appendChild(infoBlock(t("weekly.statEra"),   era,          null, "sm"));
+  pitCard.body.appendChild(infoBlock(t("weekly.statKK"),    s.pK,         null, "sm"));
+  pitCard.body.appendChild(infoBlock(t("weekly.statW"),     s.w  ?? 0,    null, "sm"));
+  pitCard.body.appendChild(infoBlock(t("weekly.statL"),     s.l  ?? 0,    null, "sm"));
+  pitCard.body.appendChild(infoBlock(t("weekly.statSv"),    s.sv ?? 0,    null, "sm"));
   wrap.appendChild(pitCard.root);
 
   // 이번 시즌의 대회 기록

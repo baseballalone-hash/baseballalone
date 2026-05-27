@@ -317,6 +317,12 @@ export const ko = {
     SF:  "희생플라이",
     SB:  "도루",
     CS:  "도루실패",
+    PIT_CHANGE: "투수 교체",
+    COLD_GAME: "콜드게임 종료",
+  },
+
+  toast: {
+    mainReplaced: "강판됐다",
   },
 
   hand: {
@@ -518,6 +524,11 @@ export const ko = {
     statK: "삼진",
     statSb: "도루",
     statHbp: "사구",
+    statR: "득점",
+    statRbi: "타점",
+    statW: "승",
+    statL: "패",
+    statSv: "세이브",
     statG: "경기",
     statBa: "타율",
     statOps: "OPS",

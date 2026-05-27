@@ -313,6 +313,12 @@ export const en = {
     SF:  "Sac Fly",
     SB:  "Stolen Base",
     CS:  "Caught Stealing",
+    PIT_CHANGE: "Pitching change",
+    COLD_GAME: "Game called (mercy rule)",
+  },
+
+  toast: {
+    mainReplaced: "You were pulled from the mound",
   },
 
   hand: {
@@ -514,6 +520,11 @@ export const en = {
     statK: "K",
     statSb: "SB",
     statHbp: "HBP",
+    statR: "R",
+    statRbi: "RBI",
+    statW: "W",
+    statL: "L",
+    statSv: "SV",
     statG: "G",
     statBa: "AVG",
     statOps: "OPS",
