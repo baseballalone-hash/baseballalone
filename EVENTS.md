@@ -136,25 +136,82 @@
 
 ## 3.5. 차후 개발 — 회귀 시스템 (Regression / NewGame+)
 
-> 사용자가 직접 설계 예정. 본 섹션은 인터페이스 메모.
+> 2026-05-28 설계 확정. 구현 대기.
 
-**컨셉**: 은퇴/사망/엔딩 후 다시 16세부터 시작. 이전 커리어 성과에 비례해 초기 능력치를 더 가져가거나 특수 능력이 생김.
+**TL;DR**: 은퇴 시 누적된 메타 점수로 5탭 상점에서 강화 구매 → 다음 캐릭터 빌드. 영구 누적(재능 슬롯·stage cap) + 캐릭터 한정 재구매(시작 능력치·특성·유물) 하이브리드.
 
-**현재 코드 준비 상태**:
-- `createPlayer` base 스탯이 44~52 ("평균 살짝 위") — 회귀 보너스 적재 자리 확보
-- `careerStats`, `careerHistory`, `championships`, `tournamentHistory`, `awards` 가 누적 상태로 보존됨
-- 은퇴 분기 (`career.js:transitionToStage("retire")`) 존재
+### 점수 산정
 
-**구현 시 고려할 훅 포인트**:
-1. **저장 키 분리**: 현재 saveGame 은 단일 슬롯. 회귀 시 이전 커리어를 별도 슬롯(`legacy:<n>`)에 보관, 신규 게임 메인 슬롯 사용
-2. **회귀 보너스 산출**: 이전 커리어의 `careerStats.h / hr / w / k` + `championships.length` + `tournamentHistory champion 횟수` 로 점수 산출
-3. **시작 스탯 부스트**: `createPlayer` 호출 시 회귀 슬롯이 있으면 base 스탯에 +N 가산. 점수 임계별로 +5~+30
-4. **특수 능력 (talent 슬롯 확장)**: 현재 talent 는 단일 (contact/power/etc.). 회귀 후엔 base 재능에 추가로 보조 재능 1~2개 (예: "역전 본능", "결승전 특화")
-5. **UI**: 메인 메뉴에 "회귀하기" 옵션 + 이전 커리어 요약 + 부스트 미리보기
+`hallOfFame.js:computeHallOfFameScore` 의 `total` 을 그대로 회귀 점수로 사용. 통산 H/HR/RBI/SB/W/K/SV + 우승 30점 + 대회우승 5점 + MVP 50/신인왕 30 + 큰 마일스톤. 풀 22시즌 컨택형 캐릭터 ~400~500점, 짧은 커리어 100~200점.
 
-**잠재적 충돌 영역**:
-- `i18n` setLocale 가 옛 세이브 키와 회귀 슬롯 양쪽에 적용되도록 (현재 단일 키)
-- 회귀 횟수 N+1 의 부스트 누적 룰 (선형/체감)
+### 저장 — localStorage 별도 키
+
+캐릭터 세이브(`baseballalone.save.v*`)와 독립. 회귀 메타는 `baseballalone.regression.v1`:
+
+```js
+{
+  balance: 0,                  // 사용 가능 점수 (영구 누적)
+  totalEarned: 0,              // 평생 누적 (통계용)
+  runs: 0,                     // 회귀 횟수
+  permanentPurchases: {        // 영구 탭 구매 내역
+    talentSlots: 0,            // 0~2 (총 1~3 재능)
+    capBoosts: { amateur: 0, kbo: 0, mlb: 0 },  // 각 0~3 (+10/+20/+30)
+  },
+  unlockedItems: [],           // 도전과제 해금된 특성/유물 키
+  loadout: {                   // 다음 캐릭터에 적용될 재구매 탭 선택
+    startingStat: null,        // "balanced" | "battingFocus" | "pitchingFocus"
+    traits: [],                // 장착 특성 키 (최대 3)
+    relics: [],                // 장착 유물 키 (최대 2)
+  },
+}
+```
+
+### 상점 5탭
+
+| 탭 | 영구성 | 항목 / 가격 |
+|---|---|---|
+| **재능 슬롯** | 영구 | +1 (500점, 총 2재능) → +2 (1500점, 총 3재능). 효과 boost 합산 |
+| **stage cap** | 영구·누적 | 아마추어(HS+대학) 200/400/700, KBO(pro1+pro2) 500/1000/1700, MLB(mlb_a~mlb) 800/1500/2500. 각 +10/+20/+30 |
+| **시작 능력치** | 재구매·캐릭터당 1 | 균형(10종 +5) 300 / 타격 집중(5종 +10) 400 / 투구 집중(5종 +10) 400 |
+| **특성** | 재구매·1~3장 장착 | 8종 (아래) |
+| **유물** | 재구매·1~2개 장착 | 6종 (아래) |
+
+**특성 카탈로그** (가격 / 해금 조건):
+- 강철멘탈: 부상 확률 ×0.5 (200, 기본 해금)
+- 학습자: 첫 시즌 훈련 효율 ×2 (150, 기본)
+- 스타성: 명성 획득 ×1.5 (200, 기본)
+- 클러치: 9회+ 끝내기 확률 ×2 (200, 끝내기 1회 해금)
+- 빅게임: 결승/PO 보상 ×1.5 (250, 우승 1회 해금)
+- 전성기 연장: 노화 시작 +3년 (300, HoF 헌액 해금)
+- 전설의 후계자: 시작 명성 +50 (300, HoF 헌액 해금)
+- 철완: severe 부상 시 토미존 확률 0 (350, severe 부상 회복 해금)
+
+**유물 카탈로그** (가격):
+- 전생의 노트: 첫 시즌 훈련 ×2 (100)
+- 행운의 배트: 끝내기 확률 +5%p (80)
+- 명함: 신인 드래프트 라운드 +1 (150)
+- 멘토의 편지: 자동훈련 부족도 보정 ×1.5 (100)
+- 의수: 부상 회복 ×2 (120)
+- 황금 글러브: 실책 확률 ×0.5 (150)
+
+### 구현 순서
+
+1. `src/systems/regression.js` — 점수 계산 (HoF 점수 래퍼) + localStorage 영속화 + 상태 로드/세이브
+2. `src/data/shopCatalog.js` — 위 카탈로그 코드화
+3. 은퇴 모달 (`hallOfFame` 결과 패널)에 "점수 N 획득" + "상점 보기" 버튼
+4. `src/views/shop.js` — 5탭 UI + 구매/장착 액션
+5. 캐릭터 생성 (`menu.js` + `player.js:createPlayer`) — 영구 효과 자동 적용 + 재능 슬롯 N개 지원 + 시작 능력치 가산
+6. 특성/유물 효과 wiring — `player.js` (부상/훈련/노화), `simulator.js` (끝내기/실책), `career.js` (드래프트/명성), `finals.js` (보상 배율)
+7. 도전과제 해금 검출 — `milestones.js` / `hallOfFame.js` / `applyInjury` 회복 시점에 `unlockedItems` push
+8. `probe-regression.mjs` — 회귀 1회 시뮬 (HoF 점수 → 영구 구매 → 다음 캐릭터 시작값 검증)
+9. i18n KO/EN — `shop.*`, `trait.*`, `relic.*`, `regression.*` 키 풀
+
+### 잠재적 충돌 영역
+
+- 재능 슬롯 확장 시 `TALENTS[player.talent].boost` 가 단일 객체 가정 — 다중 재능은 배열로 저장하고 `boost` 가산 합치는 헬퍼 필요
+- stage cap 상향이 `getPlayerStatCap` 만 통과하는지, `applyGameExperience` / `agedDecline` 등 다른 cap 참조 없는지 점검
+- 영구 cap 보너스가 적용된 상태에서 NPC cap (`getNpcStatCap`) 은 그대로 둘지 — 그대로 두면 메인이 절대 강해지는 방향. 의도된 보상으로 OK
+- `mental` cap 초과 버그 (probe-career에서 183 관측) 회귀 시스템과 별개로 우선 패치 필요
 
 ---
 
@@ -297,6 +354,7 @@ node probe-career.mjs
 - OVR 곡선 — 데뷔 ~75, 32~34세 피크, 36세부터 노화 감소
 - 시즌 IP 150~280 (실제 SP 150~180)
 - PO 시리즈 결과 표시 (`wcW → spoL` 등 라운드별 누적)
+- **커리어 피크 능력치 dump** — 시즌별 stat 최고치 누적 + 최종 stat. cap 대비 도달률로 회귀 보상 강도(특히 시작 능력치 +N) 가늠 가능. 첫 컨택형 캐릭터 기준 contact ~145(cap 91%) / 나머지 50~60%
 
 값이 크게 어긋나면 balance 회귀 의심 — `simulator.js:simulateAtBat` 의 계수 `softDiff`/`pitcherChanceByRest`/`ageUp` 노화 곡선·`applyGameExperience` ageMult 등을 점검.
 
@@ -322,3 +380,4 @@ mkdir -p /tmp/node && tar -xJf /tmp/node.tar.xz -C /tmp/node --strip-components=
 - 2026-05-27 v0.5 — 잔여 이벤트 5건 일괄 완료. #14 끝내기(walkoff) 검출, #11 PO 시리즈제 (KBO wc 단판/spo 3전2승/po 5전3승/ks 7전4승, MLB wc 3전2승/ds 5전3승/cs·ws 7전4승), #15 명예의 전당 (`hallOfFame.js` — 헌액/영구결번/일반은퇴 3단계), #12 WBC/올림픽/아시안게임/프리미어12 라이브 모달 전환 (handlerKey `intlTournamentLive`), #10 FA 시스템 (4년 계약 + 만료 시 잔류/이적 모달). #13 일본 진출은 보류. 차후: #16 트레이드, 회귀 시스템 (섹션 2.5 메모).
 - 2026-05-27 v0.5.1 — #13 일본 프로야구 영구 삭제 (stage/cap/팀풀/i18n/aged range/simulator 전수). #16 트레이드 시스템 (`career.js:maybeTradeOffer` 8% 확률 + `applyTradeAccept`, 휴식기 진입 시 FA 다음 단계). 차후 작업 = 회귀 시스템 (섹션 3.5) 뿐.
 - 2026-05-27 v0.5.2 — 문서 전수 정리. TL;DR/인벤토리/갭 표를 v0.5.1 기준으로 재작성. §6 신규 — probe 스크립트 사용법 + 현실 비교 체크리스트 + Node 런타임 임시 설치 가이드. 섹션 번호 재정렬 (§3.5 회귀 시스템 / §6 검증 / §7 변경 로그).
+- 2026-05-28 v0.5.3 — §3.5 회귀 시스템 설계 확정 (구현 대기). 점수 = HoF 점수 재활용, 5탭 상점 (재능 슬롯·stage cap = 영구 / 시작 능력치·특성·유물 = 캐릭터 한정 재구매), 도전과제 해금. 카탈로그 + 저장 스키마 + 구현 순서 + 충돌 영역 명시. `probe-career.mjs` 에 피크/최종 stat dump 추가 (회귀 보상 강도 가늠용). probe 검증 결과: 첫 컨택형 캐릭터 contact ~145(cap 91%), 나머지 50~60%, mental cap 초과 버그(183) 별도 발견.
