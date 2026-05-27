@@ -97,7 +97,8 @@ function makeOpponentForRound(myStrength, round, stage) {
     name: pick?.name ?? "Opponent",
     region: pick?.region,
     strength,
-    roster: createRoster(strength, ageRange),
+    // stage 옵션 없으면 getNpcStatCap(undefined) 폴백 150 → MLB 200/pro1 160 보다 약체로 생성되던 버그 fix.
+    roster: createRoster(strength, ageRange, { stage: poolStage }),
     record: { w: 0, l: 0, t: 0 },
     isPlayerTeam: false,
   };
@@ -117,6 +118,25 @@ export function simulatePostseasonGame(player, league, opponent, stage) {
   };
   const gameDef = { home: myTeam.id, away: opponent.id };
   return simulateGame(tempLeague, gameDef, player);
+}
+
+// 포스트시즌 종료 시 player.tournamentHistory 에 한 줄 push.
+// finalRound: 도달한 마지막 라운드 (ks/ws 까지 갔으면 챔피언, 아니면 그 라운드에서 탈락)
+// wonChampionship: ks/ws 우승 여부
+export function pushPostseasonRecord(player, stage, finalRound, wonChampionship) {
+  player.tournamentHistory = player.tournamentHistory ?? [];
+  const prefix = stage === "pro1" ? "kbo_" : "mlb_";
+  const isFinalRound = (finalRound === "ks" || finalRound === "ws");
+  const result = wonChampionship ? "champion"
+              : (isFinalRound ? "runner" : "eliminated");
+  player.tournamentHistory.push({
+    year:  state.gameDate?.year ?? null,
+    grade: player.grade,
+    tournamentKey: prefix + finalRound,
+    result,
+    mvp: false,
+  });
+  if (player.tournamentHistory.length > 400) player.tournamentHistory.shift();
 }
 
 // 라운드 승/패 보상 — 우승만 보상 부여. ks/ws 는 큰 보상.

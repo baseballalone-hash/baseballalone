@@ -42,6 +42,17 @@ export const ko = {
     military: "군 복무",
   },
 
+  // 플레이어 카드 타이틀용 짧은 단계 라벨 ({team} {stageShort})
+  stageShort: {
+    pro2:    "2군",
+    pro1:    "1군",
+    japan:   "NPB",
+    mlb:     "메이저",
+    mlb_aaa: "AAA",
+    mlb_aa:  "AA",
+    mlb_a:   "싱글A",
+  },
+
   stat: {
     contact: "컨택", power: "파워", eye: "선구안", speed: "주력", defense: "수비",
     velocity: "구속", control: "제구", breaking: "변화구", stamina: "스태미나", mental: "멘탈",
@@ -304,7 +315,7 @@ export const ko = {
     },
   },
 
-  // 한국 고교야구 대회 (tournaments.js)
+  // 한국 고교야구 대회 (tournaments.js) + 프로 포스트시즌 (postseason.js)
   tournament: {
     weekly_first:  "전반기 주말리그",
     emart_cup:     "현무기",
@@ -313,6 +324,16 @@ export const ko = {
     blue_dragon:   "청룡기",
     president_cup: "대통령배",
     phoenix_cup:   "주작기",
+    // KBO 포스트시즌
+    kbo_wc:  "와일드카드 결정전",
+    kbo_spo: "준플레이오프",
+    kbo_po:  "플레이오프",
+    kbo_ks:  "한국시리즈",
+    // MLB 포스트시즌
+    mlb_wc: "와일드카드 시리즈",
+    mlb_ds: "디비전 시리즈",
+    mlb_cs: "리그 챔피언십 시리즈",
+    mlb_ws: "월드시리즈",
   },
 
   // 대회 결과
@@ -353,19 +374,6 @@ export const ko = {
   // 토스트 (단발 알림)
   toast: {
     hbpInjury: "사구 부상! ({type})",
-  },
-
-  // 멘토/라이벌 (relations.js)
-  relations: {
-    title:      "관계",
-    mentor:     "멘토",
-    rival:      "라이벌",
-    retired:    "은퇴",
-    activeLine: "{age}세 · {role}",
-    role: {
-      batter:  "타자",
-      pitcher: "투수",
-    },
   },
 
   // 포스트시즌 (postseason.js)
@@ -418,6 +426,14 @@ export const ko = {
     olympics:    "올림픽 야구 대표 차출!",
     asian_games: "아시안게임 대표 차출!",
     premier12:   "프리미어12 대표 차출!",
+    // 올스타 라이브 모달
+    allStarTitle:        "올스타전",
+    allStarAnnounceDesc: "리그를 대표하는 선수들이 모이는 화려한 경기.",
+    allStarBtnPlay:      "올스타전 시작",
+    allStarBtnEnd:       "마치기",
+    allStarMyTeamName:   "리그 올스타",
+    allStarOppTeamName:  "상대 올스타",
+    allStarReward:       "출전 보상 — 명성 +8, 멘탈 +2, 선구안 +1",
   },
 
   // 타석 결과 (simulator → events.type)
@@ -700,5 +716,6 @@ export const ko = {
     btnNextSeason: "{grade}학년 시즌 시작",
 
     titleWithTeamGrade: "{name} — {team} {grade}학년",
+    titleWithTeamLevel: "{name} — {team} {level}",
   },
 };

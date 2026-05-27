@@ -5,9 +5,9 @@
 
 import { state, saveGame, pushToast } from "../state.js";
 import {
-  BATTER_STATS, PITCHER_STATS, TALENTS, overallScore, getStatLabels, getPlayerStatCap,
+  BATTER_STATS, PITCHER_STATS, TALENTS, overallScore, getStatLabels, getPlayerStatCap, applyGameExperience,
 } from "../systems/player.js";
-import { advanceToNextSeason } from "../systems/week.js";
+import { advanceToNextSeason, mergeSeasonStats } from "../systems/week.js";
 import { transitionAfterSeason, transitionToStage, eligibleCareerPaths, kboDraft, determineMLBStartStage, compositeScore } from "../systems/career.js";
 import { getPlayerTeam, standings } from "../systems/league.js";
 import { createFaceSVG } from "../render/avatars.js";
@@ -22,8 +22,8 @@ import { createPOVScene, pulseDiamondHome } from "../render/finalAnim.js";
 import { randomName } from "../data/names.js";
 import { getTeamPool } from "../data/teams.js";
 import { checkMilitaryTrigger, applyMilitaryService, MILITARY_OPTIONS } from "../systems/military.js";
-import { simulatePostseasonGame, applyRoundReward, advanceToNextRound } from "../systems/postseason.js";
-import { getMentor, getRival, relationOverall } from "../systems/relations.js";
+import { simulatePostseasonGame, applyRoundReward, advanceToNextRound, pushPostseasonRecord } from "../systems/postseason.js";
+import { nextPendingEvent, clearPendingEvent, simulateAllStarGame, applyAllStarReward } from "../systems/seasonEvents.js";
 
 export function renderWeekly(root, route, opts = {}) {
   const { player, league, season } = state;
@@ -36,6 +36,8 @@ export function renderWeekly(root, route, opts = {}) {
     showFinalModalIfNeeded(route);
     // 포스트시즌 진출이면 시즌종료 화면 위에 모달로
     showPostseasonModalIfNeeded(route);
+    // 시즌 종료 시점에도 미처리 시즌 이벤트(올스타 등) 처리
+    showSeasonEventModalIfNeeded(route);
     return;
   }
 
@@ -74,6 +76,8 @@ export function renderWeekly(root, route, opts = {}) {
 
   // 토너먼트 결승 진출 — 모달 발동 (한 번만)
   showFinalModalIfNeeded(route);
+  // 시즌 중 이벤트 모달 (올스타전 등) — pendingEvents 큐 첫 항목
+  showSeasonEventModalIfNeeded(route);
 }
 
 // 토너먼트 결승 모달 — state.pendingFinal 이 있고 아직 모달 안 띄웠으면 발동
@@ -147,7 +151,7 @@ function buildFinalAnnounce(dialog, final, rerender) {
   const pct = v => (isFinite(v) ? Math.round(v * 100) : 0);
   lineup.innerHTML = t("weekly.finalAppearance", {
     bat: pct(ch.bat),
-    pit: pct(ch.pit),
+    pit: pct(ch.pitch),
   });
   dialog.appendChild(lineup);
 
@@ -170,7 +174,22 @@ function buildFinalAnnounce(dialog, final, rerender) {
 
 // phase 2 — 라이브 진행: 다이아몬드 SVG + 라인 스코어 + 이닝별 점수 라이브 + 메인 이벤트 로그
 function buildFinalPlaying(dialog, final, rerender) {
-  const result = final.result;
+  playLiveGame(dialog, final.result, {
+    titleText: t("weekly.finalLiveTitle", { tournament: t("tournament." + final.tournamentKey) }),
+    onComplete: () => {
+      final.status = "result";
+      saveGame();
+      rerender();
+    },
+  });
+}
+
+// 라이브 경기 렌더링 helper — 결승/포스트시즌/올스타 공용.
+//   dialog: 모달 dialog DOM (기존 자식 제거 후 채움)
+//   result: simulateGame 결과 객체 (home/away/innings/mainPlayer.events 필요)
+//   opts.titleText: 모달 상단 제목 텍스트
+//   opts.onComplete: 라이브 진행 끝나면 호출 (외부 status 전환 + rerender)
+function playLiveGame(dialog, result, opts) {
   const home = result.home;
   const away = result.away;
   const my = home.team.isPlayerTeam ? home : away;
@@ -181,7 +200,7 @@ function buildFinalPlaying(dialog, final, rerender) {
   const h = document.createElement("h2");
   h.style.margin = "0 0 8px";
   h.style.fontSize = "15px";
-  h.textContent = t("weekly.finalLiveTitle", { tournament: t("tournament." + final.tournamentKey) });
+  h.textContent = opts.titleText;
   dialog.appendChild(h);
 
   // 2) 시각화 영역 — 평소 다이아몬드, 메인 캐릭터 타석/등판 시 POV 씬으로 swap
@@ -465,9 +484,7 @@ function buildFinalPlaying(dialog, final, rerender) {
       }
     }
     if (cancelled) return;
-    final.status = "result";
-    saveGame();
-    rerender();
+    opts.onComplete?.();
   })();
 }
 
@@ -670,13 +687,6 @@ function renderWeeklyCarousel(route, player, league, season) {
       render: () => renderStandingsBody(league),
     },
   ];
-  // 멘토/라이벌 슬라이드 — 1학년 첫 시즌 종료 후 생성됐을 때만 노출
-  if (player.relations) {
-    slides.push({
-      title: t("relations.title"),
-      render: () => renderRelationsBody(player),
-    });
-  }
   if (weeklyCarouselIdx >= slides.length) weeklyCarouselIdx = 0;
   return renderCarousel(slides, {
     get: () => weeklyCarouselIdx,
@@ -979,11 +989,19 @@ function renderHeaderInfo(player, league, season) {
   h.style.minWidth = "0";
   h.style.overflow = "hidden";
   h.style.textOverflow = "ellipsis";
-  h.textContent = t("weekly.titleWithTeamGrade", {
-    name: player.name,
-    team: player.teamName,
-    grade: player.grade,
-  });
+  // 고교/대학은 "{team} {grade}학년", 프로/MLB/일본은 "{team} {등급라벨}"
+  const isSchoolStage = player.stage === "high" || player.stage === "univ";
+  h.textContent = isSchoolStage
+    ? t("weekly.titleWithTeamGrade", {
+        name: player.name,
+        team: player.teamName,
+        grade: player.grade,
+      })
+    : t("weekly.titleWithTeamLevel", {
+        name: player.name,
+        team: player.teamName,
+        level: t("stageShort." + player.stage),
+      });
   titleRow.appendChild(h);
 
   panel.appendChild(titleRow);
@@ -2387,52 +2405,6 @@ function openMLBOfferModal(offers, onChoose) {
   document.body.appendChild(backdrop);
 }
 
-// 멘토/라이벌 슬라이드 — relations 가 있을 때만 노출
-function renderRelationsBody(player) {
-  const wrap = document.createElement("div");
-  wrap.style.cssText = "display:flex; flex-direction:column; gap:8px; padding:4px;";
-
-  function card(npc, accentVar) {
-    const c = document.createElement("div");
-    c.style.cssText = `background:var(--panel-2); border:1px solid var(--border); border-left:3px solid ${accentVar}; border-radius:8px; padding:10px;`;
-
-    const head = document.createElement("div");
-    head.style.cssText = "display:flex; justify-content:space-between; align-items:baseline;";
-    const left = document.createElement("div");
-    const label = document.createElement("span");
-    label.style.cssText = `font-size:11px; color:${accentVar}; font-weight:700; margin-right:6px;`;
-    label.textContent = t("relations." + npc.relation);
-    const name = document.createElement("span");
-    name.style.cssText = "font-weight:700; font-size:14px;";
-    name.textContent = npc.name;
-    left.appendChild(label);
-    left.appendChild(name);
-    head.appendChild(left);
-
-    const status = document.createElement("span");
-    status.style.cssText = "font-size:10px; color:var(--muted);";
-    status.textContent = npc.status === "retired"
-      ? t("relations.retired")
-      : t("relations.activeLine", { age: npc.age, role: t("relations.role." + npc.role) });
-    head.appendChild(status);
-    c.appendChild(head);
-
-    if (npc.status !== "retired") {
-      const ovrLine = document.createElement("div");
-      ovrLine.style.cssText = "margin-top:6px; font-size:11px;";
-      ovrLine.innerHTML = `<span style="color:var(--muted)">OVR:</span> <span style="font-weight:700">${relationOverall(npc)}</span>`;
-      c.appendChild(ovrLine);
-    }
-    return c;
-  }
-
-  const mentor = getMentor(player);
-  const rival  = getRival(player);
-  if (mentor) wrap.appendChild(card(mentor, "var(--accent-2)"));
-  if (rival)  wrap.appendChild(card(rival,  "var(--accent)"));
-  return wrap;
-}
-
 // 포스트시즌 모달 — 시즌 종료 시 pro1/mlb 진출 자격이 있으면 발동.
 // announce → result 반복 (라운드별). 우승 시 다음 라운드, 패배 시 종료.
 let _postseasonModalShown = false;
@@ -2453,9 +2425,12 @@ function showPostseasonModalIfNeeded(route) {
 
   function rerender() {
     dialog.innerHTML = "";
-    const h = document.createElement("h2");
-    h.textContent = t("postseason.title." + ps.round);
-    dialog.appendChild(h);
+    // playing 단계는 playLiveGame 이 자체 제목 + 라이브 UI 를 통째로 빌드함 — 외부 h2 생략.
+    if (ps.status !== "playing") {
+      const h = document.createElement("h2");
+      h.textContent = t("postseason.title." + ps.round);
+      dialog.appendChild(h);
+    }
 
     if (ps.status === "announce") {
       const desc = document.createElement("p");
@@ -2486,11 +2461,29 @@ function showPostseasonModalIfNeeded(route) {
       btn.addEventListener("pointerdown", e => {
         e.preventDefault();
         ps.result = simulatePostseasonGame(state.player, state.league, ps.opponent, ps.stage);
-        ps.status = "result";
+        // PO 게임도 시즌/통산 통계 + 경기 경험치에 누적 — 정규시즌과 동일 처리.
+        // mainPlayer 없으면(코치판단으로 출장 X) skip.
+        if (ps.result?.mainPlayer && (ps.result.mainPlayer.roles?.bat || ps.result.mainPlayer.roles?.pitch)) {
+          mergeSeasonStats(state.player, ps.result.mainPlayer);
+          applyGameExperience(state.player, ps.result.mainPlayer);
+          state.player.seasonStats.games = (state.player.seasonStats.games ?? 0) + 1;
+        }
+        ps.status = "playing";
         saveGame();
         rerender();
       });
       dialog.appendChild(btn);
+    } else if (ps.status === "playing") {
+      // 라이브 진행 — 결승 모달과 동일 라이브 UI 재사용.
+      playLiveGame(dialog, ps.result, {
+        titleText: t("postseason.title." + ps.round),
+        onComplete: () => {
+          ps.status = "result";
+          saveGame();
+          rerender();
+        },
+      });
+      return;  // dialog 자체 빌드 완료 — 아래 result 분기로 떨어지면 안 됨
     } else if (ps.status === "result") {
       const r = ps.result;
       const myEntry  = r.home.team.isPlayerTeam ? r.home : r.away;
@@ -2552,6 +2545,9 @@ function showPostseasonModalIfNeeded(route) {
         btn.textContent = t("postseason.btnEnd");
         btn.addEventListener("pointerdown", e => {
           e.preventDefault();
+          // 포스트시즌 종료 — tournamentHistory 에 한 줄 push (도달한 마지막 라운드 기준).
+          // ks/ws 우승만 champion. 그 외 final 도달은 runner, 중도 탈락은 eliminated.
+          pushPostseasonRecord(state.player, ps.stage, ps.round, won && isFinalRound);
           state.pendingPostseason = null;
           _postseasonModalShown = false;
           saveGame();
@@ -2559,6 +2555,128 @@ function showPostseasonModalIfNeeded(route) {
           route("weekly");
         });
       }
+      dialog.appendChild(btn);
+    }
+  }
+
+  rerender();
+  backdrop.appendChild(dialog);
+  document.body.appendChild(backdrop);
+}
+
+// 시즌 중 이벤트(올스타전 등) 모달 — pendingEvents 큐 첫 항목 처리.
+// 현재는 all_star 만 모달 핸들링. 다른 modal-type 이벤트도 같은 패턴으로 추가 가능.
+let _seasonEventModalShown = false;
+function showSeasonEventModalIfNeeded(route) {
+  const ev = nextPendingEvent();
+  if (!ev || _seasonEventModalShown) return;
+  if (ev.handlerKey !== "allStarLive") {
+    // 알려지지 않은 핸들러는 큐에서만 제거 (안전상)
+    clearPendingEvent();
+    return;
+  }
+  _seasonEventModalShown = true;
+  showAllStarModal(route);
+}
+
+// 올스타전 라이브 모달 — 결승 모달 패턴 재사용 (playLiveGame).
+// announce → playing(라이브) → result. result 에서 보상 부여.
+function showAllStarModal(route) {
+  state.paused = true;
+  saveGame();
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  const dialog = document.createElement("div");
+  dialog.className = "modal-dialog";
+  dialog.style.position = "relative";
+  dialog.style.maxWidth = "360px";
+
+  const data = { status: "announce", result: null, _rewardApplied: false };
+
+  function rerender() {
+    dialog.innerHTML = "";
+    // playing 상태는 playLiveGame 이 전체 dialog 를 채움 — 외부 h2 생략.
+    if (data.status !== "playing") {
+      const h = document.createElement("h2");
+      h.textContent = t("seasonEvent.allStarTitle");
+      dialog.appendChild(h);
+    }
+    if (data.status === "announce") {
+      const desc = document.createElement("p");
+      desc.className = "muted small";
+      desc.style.cssText = "margin:0 0 12px; line-height:1.5;";
+      desc.textContent = t("seasonEvent.allStarAnnounceDesc");
+      dialog.appendChild(desc);
+      const btn = document.createElement("button");
+      btn.className = "primary";
+      btn.style.cssText = "width:100%; padding:12px; font-weight:700;";
+      btn.textContent = t("seasonEvent.allStarBtnPlay");
+      btn.addEventListener("pointerdown", e => {
+        e.preventDefault();
+        data.result = simulateAllStarGame(state.player, state.league);
+        if (!data.result) {
+          // 시뮬 실패 — 보상만 부여하고 종료
+          applyAllStarReward(state.player);
+          clearPendingEvent();
+          _seasonEventModalShown = false;
+          state.paused = false;
+          saveGame();
+          backdrop.remove();
+          route("weekly");
+          return;
+        }
+        data.status = "playing";
+        saveGame();
+        rerender();
+      });
+      dialog.appendChild(btn);
+    } else if (data.status === "playing") {
+      playLiveGame(dialog, data.result, {
+        titleText: t("seasonEvent.allStarTitle"),
+        onComplete: () => {
+          data.status = "result";
+          saveGame();
+          rerender();
+        },
+      });
+      return;
+    } else if (data.status === "result") {
+      const r = data.result;
+      const myEntry  = r.home.team.isPlayerTeam ? r.home : r.away;
+      const oppEntry = myEntry === r.home ? r.away : r.home;
+      const won = r.winner === myEntry.team.name;
+
+      const resCard = document.createElement("div");
+      resCard.style.cssText = `background:var(--panel-2); border:1px solid var(--${won ? "good" : "muted"}); border-radius:8px; padding:14px; margin-bottom:12px; text-align:center;`;
+      const score = document.createElement("div");
+      score.style.cssText = "font-size:18px; font-weight:700;";
+      score.textContent = `${myEntry.team.name} ${myEntry.score} — ${oppEntry.score} ${oppEntry.team.name}`;
+      resCard.appendChild(score);
+      dialog.appendChild(resCard);
+
+      if (!data._rewardApplied) {
+        applyAllStarReward(state.player);
+        data._rewardApplied = true;
+      }
+      const reward = document.createElement("div");
+      reward.style.cssText = "background:var(--panel-2); border-radius:6px; padding:8px; margin-bottom:12px; font-size:11px;";
+      reward.textContent = t("seasonEvent.allStarReward");
+      dialog.appendChild(reward);
+
+      const btn = document.createElement("button");
+      btn.className = "primary";
+      btn.style.cssText = "width:100%; padding:12px; font-weight:700;";
+      btn.textContent = t("seasonEvent.allStarBtnEnd");
+      btn.addEventListener("pointerdown", e => {
+        e.preventDefault();
+        clearPendingEvent();
+        _seasonEventModalShown = false;
+        state.paused = false;
+        saveGame();
+        backdrop.remove();
+        route("weekly");
+      });
       dialog.appendChild(btn);
     }
   }

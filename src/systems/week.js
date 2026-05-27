@@ -14,7 +14,6 @@ import { evaluateAndApplySeasonAwards } from "./awards.js";
 import { checkScheduledEvents } from "./seasonEvents.js";
 import { detectMilestones } from "./milestones.js";
 import { checkPostseasonAdvance } from "./postseason.js";
-import { initRelations, ageUpRelations } from "./relations.js";
 
 export function createSeason(stage) {
   return {
@@ -111,10 +110,7 @@ export function endWeek() {
       applyInjury(player, sev);
       pushToast(t("toast.hbpInjury", { type: t("injury." + sev) }), "bad");
     }
-    // 메인 강판 토스트 — UI 가 다음 렌더에서 띄움.
-    if (r.mainPlayer?.pitcherReplaced) {
-      pushToast(t("toast.mainReplaced"), "info");
-    }
+    // 메인 강판 표시는 결승 라이브 모달의 PIT_CHANGE 이벤트로만 노출 — 일반 시즌은 토스트 없음.
     // 등판한 NPC pitcher 휴식 카운터 0 으로 reset.
     if (r.usedNpcPitcherIds) {
       const usedSet = new Set(r.usedNpcPitcherIds);
@@ -157,13 +153,11 @@ export function endWeek() {
       const ps = checkPostseasonAdvance(player, league);
       if (ps) state.pendingPostseason = ps;
     }
-    // 첫 시즌 종료 시점에 멘토/라이벌 생성 (이후 호출은 noop)
-    initRelations(player);
   }
   return { ok: true, results };
 }
 
-function mergeSeasonStats(player, mainPlayer) {
+export function mergeSeasonStats(player, mainPlayer) {
   const ss = player.seasonStats;
   if (mainPlayer.batterBox) {
     const box = mainPlayer.batterBox;
@@ -218,8 +212,6 @@ export function advanceToNextSeason() {
   // 리셋
   player.seasonStats = emptyStatsLike(player.seasonStats);
   ageUp(player);
-  // 멘토/라이벌 진화
-  ageUpRelations(player);
   return { stage: player.stage, grade: player.grade };
 }
 

@@ -19,6 +19,9 @@
 import { state, pushToast } from "../state.js";
 import { t } from "../i18n/index.js";
 import { BATTER_STATS, PITCHER_STATS, getPlayerStatCap } from "./player.js";
+import { simulateGame } from "./simulator.js";
+import { createRoster } from "./npc.js";
+import { getPlayerTeam } from "./league.js";
 
 const STAT_MIN = 20;
 
@@ -52,9 +55,11 @@ function isProStage(stage) {
 // type="modal" 은 큐에 적재 → UI 가 별도 모달 처리.
 export const SEASON_EVENTS = [
   // 올스타전 — KBO/MLB, 7월 중순. 명성 50+. 휴식기 대체 X (단발 출전).
+  // 라이브 모달 — 보상은 모달 종료 후 UI 가 applyAllStarReward 호출.
   {
     key: "all_star",
-    type: "toast",
+    type: "modal",
+    handlerKey: "allStarLive",
     canReplaceOffseason: false,
     trigger(player, gameDate) {
       return (player.stage === "pro1" || player.stage === "mlb")
@@ -62,13 +67,10 @@ export const SEASON_EVENTS = [
         && gameDate.dayOfMonth >= 8 && gameDate.dayOfMonth <= 18
         && (player.fame ?? 0) >= 50;
     },
-    apply(player) {
-      fameUp(player, 8);
-      bump(player, "pitcher", "mental", 2);
-      bump(player, "batter", "eye", 1);
-    },
-    toastKey: "seasonEvent.all_star",
   },
+
+  // 올스타전 보상 — UI 가 라이브 모달 종료 후 호출.
+  // (apply 가 SEASON_EVENTS 의 일부가 아니라 별도 export 함수로 빼서 모달 종료 시점에 부여)
 
   // WBC — 4년 주기, 3월 초. KBO/MLB. 명성 60+. 시즌 휴식기 대체 (메달/우승 굴림).
   // 2026, 2030, 2034... → year % 4 === 2
@@ -191,4 +193,54 @@ export function clearPendingEvent() {
   if (state.pendingEvents && state.pendingEvents.length > 0) {
     state.pendingEvents.shift();
   }
+}
+
+// 올스타전 출장 보상 — 라이브 모달 종료 시 UI 가 호출.
+export function applyAllStarReward(player) {
+  fameUp(player, 8);
+  bump(player, "pitcher", "mental", 2);
+  bump(player, "batter", "eye", 1);
+}
+
+// 올스타전 단판 시뮬레이션.
+// 주인공은 자기 팀 베이스 + 양쪽 올스타 NPC 로 구성된 임시 매치업에 참여.
+// 단계 cap 90% 수준의 강한 양 팀을 만들어 화려한 경기.
+export function simulateAllStarGame(player, league) {
+  const baseStage = player.stage === "mlb" ? "mlb" : "pro1";
+  const ageRange = baseStage === "mlb" ? [22, 38] : [22, 36];
+  const myTeam = getPlayerTeam(league);
+  if (!myTeam) return null;
+
+  const allStarStrength = 90;  // 올스타급 — 일반 팀(70) 대비 매우 강함
+  const myAllStars = {
+    id: -300,
+    name: baseStage === "mlb" ? "League All-Stars" : t("seasonEvent.allStarMyTeamName"),
+    strength: allStarStrength,
+    roster: [
+      // 본인 + NPC 올스타 채우기. 본인이 라인업/마운드에 들어가는 건 simulator 가 처리.
+      ...createRoster(allStarStrength, ageRange, { stage: baseStage }),
+    ],
+    record: { w: 0, l: 0, t: 0 },
+    isPlayerTeam: true,
+  };
+  const oppAllStars = {
+    id: -301,
+    name: baseStage === "mlb" ? "Opposing All-Stars" : t("seasonEvent.allStarOppTeamName"),
+    strength: allStarStrength,
+    roster: createRoster(allStarStrength, ageRange, { stage: baseStage }),
+    record: { w: 0, l: 0, t: 0 },
+    isPlayerTeam: false,
+  };
+
+  const allStarLeague = {
+    stage: baseStage === "mlb" ? "mlb_final" : "pro1_final",
+    teams: [myAllStars, oppAllStars],
+    schedule: [],
+    weeksPerSeason: 1,
+    gamesPerWeek: 1,
+  };
+  // 임시: 주인공의 gamesSinceLastPitch 가 0(피로) 일 수 있어 코치판단/휴식 굴림으로 등판 안 할 수도.
+  // 출장 안 해도 모달은 라이브로 진행.
+  const gameDef = { home: myAllStars.id, away: oppAllStars.id };
+  return simulateGame(allStarLeague, gameDef, player);
 }

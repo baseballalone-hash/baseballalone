@@ -42,6 +42,17 @@ export const en = {
     military: "Military Service",
   },
 
+  // Short stage label for player card title ({team} {stageShort})
+  stageShort: {
+    pro2:    "Futures",
+    pro1:    "KBO",
+    japan:   "NPB",
+    mlb:     "Majors",
+    mlb_aaa: "AAA",
+    mlb_aa:  "AA",
+    mlb_a:   "A",
+  },
+
   stat: {
     contact: "Contact", power: "Power", eye: "Eye", speed: "Speed", defense: "Defense",
     velocity: "Velocity", control: "Control", breaking: "Breaking", stamina: "Stamina", mental: "Mental",
@@ -300,7 +311,7 @@ export const en = {
     },
   },
 
-  // Korean high school baseball tournaments (tournaments.js)
+  // Korean high school baseball tournaments (tournaments.js) + pro postseason (postseason.js)
   tournament: {
     weekly_first:  "Spring Weekend League",
     emart_cup:     "Black Tortoise Cup",
@@ -309,6 +320,16 @@ export const en = {
     blue_dragon:   "Azure Dragon Cup",
     president_cup: "President's Cup",
     phoenix_cup:   "Vermilion Bird Cup",
+    // KBO postseason
+    kbo_wc:  "Wild Card Round",
+    kbo_spo: "Semi-Playoff",
+    kbo_po:  "Playoffs",
+    kbo_ks:  "Korean Series",
+    // MLB postseason
+    mlb_wc: "Wild Card Series",
+    mlb_ds: "Division Series",
+    mlb_cs: "League Championship",
+    mlb_ws: "World Series",
   },
 
   // Tournament outcomes
@@ -349,19 +370,6 @@ export const en = {
   // One-shot toasts
   toast: {
     hbpInjury: "Hit by pitch — injured! ({type})",
-  },
-
-  // Mentor / Rival (relations.js)
-  relations: {
-    title:      "Relations",
-    mentor:     "Mentor",
-    rival:      "Rival",
-    retired:    "Retired",
-    activeLine: "Age {age} · {role}",
-    role: {
-      batter:  "Batter",
-      pitcher: "Pitcher",
-    },
   },
 
   // Postseason (postseason.js)
@@ -414,6 +422,14 @@ export const en = {
     olympics:    "Olympic Baseball — national team call-up!",
     asian_games: "Asian Games — national team call-up!",
     premier12:   "Premier12 — national team call-up!",
+    // All-Star live modal
+    allStarTitle:        "All-Star Game",
+    allStarAnnounceDesc: "The league's top players gather for an exhibition.",
+    allStarBtnPlay:      "Play Ball",
+    allStarBtnEnd:       "Done",
+    allStarMyTeamName:   "League All-Stars",
+    allStarOppTeamName:  "Opposing All-Stars",
+    allStarReward:       "Reward — Fame +8, Mental +2, Eye +1",
   },
 
   // At-bat outcomes (simulator → events.type)
@@ -696,5 +712,6 @@ export const en = {
     btnNextSeason: "Start Year {grade} season",
 
     titleWithTeamGrade: "{name} — {team} Year {grade}",
+    titleWithTeamLevel: "{name} — {team} {level}",
   },
 };
