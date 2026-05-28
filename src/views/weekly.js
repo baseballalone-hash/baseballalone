@@ -35,12 +35,15 @@ export function renderWeekly(root, route, opts = {}) {
     route("menu"); return;
   }
   if (season.finished) {
+    // 결승 모달이 살아있으면 시즌 종료 화면 진입 미룸 — 사용자에게 *시즌 종료 후 결승* 으로
+    // 보이는 위화감 제거. 결승 처리 끝나면 다음 route("weekly") 호출 시 이 분기 통과해서
+    // renderSeasonEnd 진입.
+    if (state.pendingFinal) {
+      showFinalModalIfNeeded(route);
+      return;
+    }
     renderSeasonEnd(root, route);
-    // 시즌 종료와 같은 주에 발동된 결승(예: 주작기)은 시즌종료 화면 위에 모달로 띄움
-    showFinalModalIfNeeded(route);
-    // 포스트시즌 진출이면 시즌종료 화면 위에 모달로
     showPostseasonModalIfNeeded(route);
-    // 시즌 종료 시점에도 미처리 시즌 이벤트(올스타 등) 처리
     showSeasonEventModalIfNeeded(route);
     return;
   }

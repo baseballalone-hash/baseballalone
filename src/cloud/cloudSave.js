@@ -18,6 +18,27 @@ import { currentUid, isSignedIn } from "./auth.js";
 
 const LOCAL_SAVE_KEY = "ninthinning.save.v1";
 
+// Firestore 는 array 안에 array 가 직접 들어가는 nested array 를 거부함.
+// league.schedule = [[game,game,...], [game,...]] (주차별 게임 배열) 가 대표적.
+// 저장 전 schedule 의 각 week 를 { games: [...] } 객체로 감싸 nested-array 회피.
+// _scheduleObj 마커 플래그로 round-trip 시 복원.
+function sanitizeForCloud(payload) {
+  const copy = JSON.parse(JSON.stringify(payload));
+  if (copy.league && Array.isArray(copy.league.schedule)) {
+    copy.league.schedule = copy.league.schedule.map(week => ({ games: Array.isArray(week) ? week : [] }));
+    copy.league._scheduleObj = true;
+  }
+  return copy;
+}
+
+function restoreFromCloud(payload) {
+  if (payload?.league?._scheduleObj && Array.isArray(payload.league.schedule)) {
+    payload.league.schedule = payload.league.schedule.map(w => Array.isArray(w?.games) ? w.games : []);
+    delete payload.league._scheduleObj;
+  }
+  return payload;
+}
+
 function saveDocRef() {
   const db = getFirebaseDb();
   const uid = currentUid();
@@ -38,7 +59,7 @@ export async function saveToCloud() {
   if (!raw) return { ok: false, reason: "no_local_save" };
 
   try {
-    const payload = JSON.parse(raw);
+    const payload = sanitizeForCloud(JSON.parse(raw));
     await setDoc(ref, {
       payload,
       clientLastSaved: Date.now(),
@@ -66,7 +87,8 @@ export async function loadFromCloud() {
     if (!snap.exists()) return { ok: false, reason: "not_found" };
     const data = snap.data();
     if (!data?.payload) return { ok: false, reason: "invalid_doc" };
-    localStorage.setItem(LOCAL_SAVE_KEY, JSON.stringify(data.payload));
+    const restored = restoreFromCloud(data.payload);
+    localStorage.setItem(LOCAL_SAVE_KEY, JSON.stringify(restored));
     return { ok: true, clientLastSaved: data.clientLastSaved ?? null };
   } catch (e) {
     console.error("[cloud] loadFromCloud 실패", e);

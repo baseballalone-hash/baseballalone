@@ -529,7 +529,7 @@ export const ko = {
   },
 
   trait: {
-    steel_mental:  { name: "강철멘탈",   desc: "부상 확률 ×0.5" },
+    steel_mental:  { name: "강철멘탈",   desc: "부상 확률 50% 감소" },
     learner:       { name: "학습자",     desc: "첫 시즌 훈련 효율 ×2" },
     stardom:       { name: "스타성",     desc: "명성 획득 ×1.5" },
     clutch:        { name: "클러치",     desc: "9회+ 끝내기 확률 ×2" },
