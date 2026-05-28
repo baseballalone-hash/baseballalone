@@ -406,6 +406,8 @@ export const ko = {
     rewardTitle:   "라운드 보상",
     btnNextRound:  "다음 라운드로",
     btnEnd:        "확인",
+    standbyTitle:  "포스트시즌 진행 중",
+    standbyDesc:   "정규시즌은 끝났지만 시즌은 끝나지 않았습니다. 포스트시즌이 모두 끝나면 시즌 종합 화면이 표시됩니다.",
   },
 
   // 트레이드 — career.js + weekly.js. 계약 잔여 1년+ 일 때 휴식기 진입 시 8% 확률.

@@ -402,6 +402,8 @@ export const en = {
     rewardTitle:   "Round Reward",
     btnNextRound:  "Next Round",
     btnEnd:        "Continue",
+    standbyTitle:  "Postseason in progress",
+    standbyDesc:   "The regular season is over, but the season isn't. The full season recap will appear after the postseason ends.",
   },
 
   // Military service (military.js)

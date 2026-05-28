@@ -389,9 +389,13 @@ function pitcherChanceByRest(restGames) {
 }
 
 // 코치판단 — 0~1. 1 = 정상 등판, 0.15 = 거의 안 등판.
-// 실제 야구 현실 반영: 약체 선발도 시즌 등판은 한다 (5선발 로테이션, 결과 나쁘면 단축 등판).
-// 결승전 압살 방지는 라이브 모달 결승 분기에서만 강하게 작동, 일반 시즌은 완만.
-function coachJudgment(player, team) {
+// 실제 야구 현실 반영: 약체 선발도 시즌 등판은 한다 (5선발 로테이션).
+// 포스트시즌은 라운드별 SP 깊이 제한 적용 (실제 야구의 단기 시리즈 패턴):
+//   gateType="championship" (KS/WS, 아마추어 결승) → 1~3등 SP 만 등판
+//   gateType="po_long"      (po/cs, 5-7전 시리즈)  → 1~4등 SP
+//   gateType="po_short"     (wc/spo/ds, 단기)      → 1~5등 SP
+//   gateType=null (일반 경기) → 비율 기반 (5선발 로테이션 시뮬)
+function coachJudgment(player, team, options = {}) {
   if (!team || !Array.isArray(team.roster)) return 1;
   const mainOvr = pitcherOVR(player);
   if (!isFinite(mainOvr)) return 0.15;
@@ -401,6 +405,20 @@ function coachJudgment(player, team) {
   if (sps.length === 0) return 1;
   const ovrs = sps.map(p => npcOverall(p)).filter(v => isFinite(v));
   if (ovrs.length === 0) return 1;
+
+  // 포스트시즌 라운드 — rank cutoff. main 보다 OVR 높은 SP 수 + 1 = 메인의 rank.
+  if (options.gateType) {
+    const aboveCount = ovrs.filter(v => v > mainOvr).length;
+    const rank = aboveCount + 1;
+    const cutoff =
+      options.gateType === "championship" ? 3
+      : options.gateType === "po_long"    ? 4
+      : options.gateType === "po_short"   ? 5
+      : 99;
+    return rank <= cutoff ? 1.0 : 0;
+  }
+
+  // 일반 시즌 경기 — 비율 기반.
   const avgSpOvr = ovrs.reduce((s, v) => s + v, 0) / ovrs.length;
   if (!isFinite(avgSpOvr) || avgSpOvr <= 0) return 1;
   const ratio = mainOvr / avgSpOvr;
@@ -421,11 +439,14 @@ export function appearanceChance(player, team = null) {
   return { bat: 1, pitch: pitcherChanceByRest(restGames) * judgment };
 }
 
-export function decideRolesForGame(player, team) {
+// options.gateType: "championship" | "po_long" | "po_short" | null
+// 포스트시즌 진입 모달이 round 정보를 알기에 호출지가 결정해서 전달.
+// 결승/PO 에서 cutoff 밖이면 pitch = false (강제 차단).
+export function decideRolesForGame(player, team, options = {}) {
   if (player.injury) return { bat: false, pitch: false };
   const restGames = player.gamesSinceLastPitch ?? 99;
   const restChance = pitcherChanceByRest(restGames);
-  const judgment = coachJudgment(player, team);
+  const judgment = coachJudgment(player, team, options);
   return {
     bat: true,
     pitch: Math.random() < restChance * judgment,

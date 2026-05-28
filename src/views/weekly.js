@@ -42,8 +42,14 @@ export function renderWeekly(root, route, opts = {}) {
       showFinalModalIfNeeded(route);
       return;
     }
+    // PO 진행 중이면 — "정규시즌 종료" 화면 대신 "포스트시즌 진행 중" 안내.
+    // PO 도 시즌의 일부 — PO 끝나야 진짜 시즌 종합 화면 진입.
+    if (state.pendingPostseason) {
+      renderPostseasonStandby(root, route);
+      showPostseasonModalIfNeeded(route);
+      return;
+    }
     renderSeasonEnd(root, route);
-    showPostseasonModalIfNeeded(route);
     showSeasonEventModalIfNeeded(route);
     return;
   }
@@ -169,7 +175,8 @@ function buildFinalAnnounce(dialog, final, rerender) {
   // 2) 미출전이면 player.position 으로 출전 + "투수 미출전" 부가 표시
   const myTeam = getPlayerTeam(state.league);
   if (!final.rolesPreroll) {
-    final.rolesPreroll = decideRolesForGame(state.player, myTeam);
+    // 아마추어/대학 결승 — championship 분기 (팀 SP 1~3등만 등판).
+    final.rolesPreroll = decideRolesForGame(state.player, myTeam, { gateType: "championship" });
     saveGame();
   }
   const roles = final.rolesPreroll;
@@ -2864,6 +2871,35 @@ function openMLBOfferModal(offers, onChoose) {
 }
 
 // 포스트시즌 모달 — 시즌 종료 시 pro1/mlb 진출 자격이 있으면 발동.
+// PO 진행 중 — 시즌 종합 화면 대신 표시되는 대기 화면.
+// 정규시즌 종료 라벨 + 포스트시즌 진행 안내. 실제 동작은 위에 뜨는 PO 모달.
+function renderPostseasonStandby(root, route) {
+  root.innerHTML = "";
+  const panel = document.createElement("section");
+  panel.className = "panel";
+  panel.style.cssText = "padding:20px; text-align:center;";
+  const h = document.createElement("h2");
+  h.style.cssText = "margin:0 0 8px;";
+  h.textContent = t("postseason.standbyTitle");
+  panel.appendChild(h);
+  const sub = document.createElement("p");
+  sub.className = "muted small";
+  sub.style.cssText = "margin:0; line-height:1.5;";
+  sub.textContent = t("postseason.standbyDesc");
+  panel.appendChild(sub);
+  root.appendChild(panel);
+}
+
+// PO 라운드 → coachJudgment gateType 매핑.
+// KS/WS    = championship (1~3등 SP)
+// po/cs    = po_long      (1~4등 SP)
+// wc/spo/ds = po_short    (1~5등 SP)
+function gateTypeForRound(round) {
+  if (round === "ks" || round === "ws") return "championship";
+  if (round === "po" || round === "cs") return "po_long";
+  return "po_short";
+}
+
 // skipFinalsModal ON 시 — 시리즈/라운드 전부 자동 시뮬 + 보상 적용. 토스트만 알림.
 function autoRunPostseason(ps) {
   const player = state.player;
@@ -2871,8 +2907,8 @@ function autoRunPostseason(ps) {
   const myTeam = getPlayerTeam(league);
   let safety = 50;  // 무한 루프 가드
   while (ps && safety-- > 0) {
-    // 매 게임마다 roles 새로 굴림 (수동 모달과 일관)
-    const roles = decideRolesForGame(player, myTeam);
+    // 매 게임마다 roles 새로 굴림 (수동 모달과 일관). round 별 gateType 적용.
+    const roles = decideRolesForGame(player, myTeam, { gateType: gateTypeForRound(ps.round) });
     const result = simulatePostseasonGame(player, league, ps.opponent, ps.stage, roles);
     if (result?.mainPlayer && (result.mainPlayer.roles?.bat || result.mainPlayer.roles?.pitch)) {
       mergeSeasonStats(player, result.mainPlayer);
@@ -2977,9 +3013,9 @@ function showPostseasonModalIfNeeded(route) {
       desc.innerHTML = `${t("postseason.announceDesc", { opponent: ps.opponent.name })}<br>${lengthLabel}`;
       dialog.appendChild(desc);
 
-      // 다음 게임 출전 굴림 — 매 게임마다 새로 (휴식일수/컨디션 반영).
+      // 다음 게임 출전 굴림 — 매 게임마다 새로 (휴식일수/컨디션 반영). round 별 gateType 적용.
       const myTeam = getPlayerTeam(state.league);
-      ps.rolesPreroll = decideRolesForGame(state.player, myTeam);
+      ps.rolesPreroll = decideRolesForGame(state.player, myTeam, { gateType: gateTypeForRound(ps.round) });
       const roleBox = document.createElement("div");
       roleBox.className = "small";
       roleBox.style.cssText = "margin:0 0 12px; padding:6px 10px; background:var(--panel-2); border:1px solid var(--border); border-radius:6px; line-height:1.5;";
