@@ -13,7 +13,7 @@
 
 import { pushToast } from "../state.js";
 import { t } from "../i18n/index.js";
-import { addFame } from "./player.js";
+import { addFame, getPlayerStatCap } from "./player.js";
 import { unlockItem } from "./regression.js";
 
 // 도전과제 해금 — 중복 방지 + 신규 해금 시 토스트.
@@ -124,7 +124,8 @@ function award(player, key, bonuses, gameDate, opts = {}) {
 
   if (bonuses.fame)   addFame(player, bonuses.fame);
   if (bonuses.mental && player.pitcher) {
-    player.pitcher.mental = Math.min(300, (player.pitcher.mental ?? 0) + bonuses.mental);
+    const cap = getPlayerStatCap(player);
+    player.pitcher.mental = Math.min(cap, (player.pitcher.mental ?? 0) + bonuses.mental);
   }
 
   player.milestones.push({
