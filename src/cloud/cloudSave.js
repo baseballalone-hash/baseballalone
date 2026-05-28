@@ -16,7 +16,7 @@ import { state } from "../state.js";
 import { getFirebaseDb, isFirebaseReady } from "./firebase.js";
 import { currentUid, isSignedIn } from "./auth.js";
 
-const LOCAL_SAVE_KEY = "baseballalone.save.v1";
+const LOCAL_SAVE_KEY = "ninthinning.save.v1";
 
 function saveDocRef() {
   const db = getFirebaseDb();

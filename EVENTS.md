@@ -146,7 +146,7 @@
 
 ### 저장 — localStorage 별도 키
 
-캐릭터 세이브(`baseballalone.save.v*`)와 독립. 회귀 메타는 `baseballalone.regression.v1`:
+캐릭터 세이브(`ninthinning.save.v*`)와 독립. 회귀 메타는 `ninthinning.regression.v1`:
 
 ```js
 {

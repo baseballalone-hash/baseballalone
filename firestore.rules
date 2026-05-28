@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// baseballalone — saves/{uid} 한 곳에만 본인 uid 가 read/write.
+// ninthinning — saves/{uid} 한 곳에만 본인 uid 가 read/write.
 // 다른 사용자의 데이터 노출/위변조 차단.
 //
 // 배포:

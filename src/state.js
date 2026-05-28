@@ -1,4 +1,4 @@
-const SAVE_KEY = "baseballalone.save.v1";
+const SAVE_KEY = "ninthinning.save.v1";
 const SAVE_VERSION = 2;
 
 export const state = {

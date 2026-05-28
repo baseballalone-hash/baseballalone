@@ -1,8 +1,8 @@
 // English string table
 export const en = {
   app: {
-    title: "Auto Baseball Alone",
-    logo: "Auto Baseball Alone",
+    title: "Ninth Inning Rebirth",
+    logo: "Ninth Inning Rebirth",
     version: "v0.3 · Phase 1+α",
   },
 

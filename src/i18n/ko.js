@@ -1,8 +1,8 @@
 // 한국어 문자열 테이블
 export const ko = {
   app: {
-    title: "나혼자만 자동야구",
-    logo: "나혼자만 자동야구",
+    title: "9회말 환생",
+    logo: "9회말 환생",
     version: "v0.3 · Phase 1+α",
   },
 

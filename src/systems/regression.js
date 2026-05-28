@@ -1,6 +1,6 @@
 // 회귀(NewGame+) 메타 영속화 + 액션.
 //
-// 캐릭터 세이브(baseballalone.save.v1)와 독립된 별도 localStorage 키에
+// 캐릭터 세이브(ninthinning.save.v1)와 독립된 별도 localStorage 키에
 // 영구 누적 데이터를 저장한다. 캐릭터 리셋/삭제와 무관하게 보존되어야 한다.
 //
 // 점수 산정: hallOfFame.computeHallOfFameScore 의 total 을 그대로 사용 — 은퇴 시
@@ -18,7 +18,7 @@ import {
   STARTING_STAT_PRESETS, TRAITS, RELICS, isTraitUnlocked,
 } from "../data/shopCatalog.js";
 
-export const REGRESSION_KEY = "baseballalone.regression.v1";
+export const REGRESSION_KEY = "ninthinning.regression.v1";
 
 // 기본 스키마. 새 사용자/로드 실패 시 모두 이 값으로 시작.
 export function defaultRegressionMeta() {

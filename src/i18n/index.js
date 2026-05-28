@@ -17,7 +17,7 @@ export const SUPPORTED_LOCALES = ["ko", "en"];
 export const DEFAULT_LOCALE = "ko";
 
 const TABLES = { ko, en };
-const LOCALE_KEY = "baseballalone.locale.v1";
+const LOCALE_KEY = "ninthinning.locale.v1";
 
 const MONTH_ABBR = {
   ko: ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"],
