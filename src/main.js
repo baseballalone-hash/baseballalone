@@ -6,6 +6,7 @@
 import { state, loadGame, hasSave, saveGame } from "./state.js";
 import { renderMenu } from "./views/menu.js";
 import { renderWeekly } from "./views/weekly.js";
+import { renderShop } from "./views/shop.js";
 import { advanceOneDay } from "./systems/tick.js";
 import { loadRegressionMeta } from "./systems/regression.js";
 import {
@@ -15,6 +16,7 @@ import {
 const VIEWS = {
   menu: renderMenu,
   weekly: renderWeekly,
+  shop: renderShop,
 };
 
 function getRoot() {

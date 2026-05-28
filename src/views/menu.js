@@ -27,6 +27,11 @@ export function renderMenu(root, route) {
   root.innerHTML = "";
   const wrap = document.createElement("div");
   wrap.className = "stack";
+  // 회귀 메타가 1회 이상 적립된 경우만 상점 진입 노출
+  const m = state.regression;
+  if (m && (m.totalEarned > 0 || m.balance > 0 || m.runs > 0)) {
+    wrap.appendChild(renderShopEntryPanel(route));
+  }
   wrap.appendChild(renderCreatePanel(route));
   root.appendChild(wrap);
 
@@ -34,6 +39,41 @@ export function renderMenu(root, route) {
   if (hasSave() && !loadModalDismissed) {
     root.appendChild(renderLoadModal(route));
   }
+}
+
+function renderShopEntryPanel(route) {
+  const panel = document.createElement("section");
+  panel.className = "panel";
+  panel.style.padding = "10px";
+
+  const m = state.regression;
+
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:8px;";
+
+  const left = document.createElement("div");
+  left.style.cssText = "flex:1; min-width:0;";
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:700; font-size:13px; color:var(--accent); margin-bottom:2px;";
+  title.textContent = t("shop.title");
+  left.appendChild(title);
+  const sub = document.createElement("div");
+  sub.className = "muted small";
+  sub.style.cssText = "font-size:11px;";
+  sub.textContent = t("regression.menuBalance", { balance: m.balance, runs: m.runs });
+  left.appendChild(sub);
+  row.appendChild(left);
+
+  const btn = document.createElement("button");
+  btn.className = "primary";
+  btn.type = "button";
+  btn.textContent = t("regression.enterShop");
+  btn.style.cssText = "padding:10px 12px; font-size:12px; font-weight:700; flex-shrink:0;";
+  btn.addEventListener("click", () => route("shop"));
+  row.appendChild(btn);
+
+  panel.appendChild(row);
+  return panel;
 }
 
 function renderLoadModal(route) {

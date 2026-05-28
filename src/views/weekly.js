@@ -25,6 +25,7 @@ import { checkMilitaryTrigger, applyMilitaryService, MILITARY_OPTIONS } from "..
 import { simulatePostseasonGame, applyRoundReward, advanceToNextRound, pushPostseasonRecord, recordSeriesGame, isSeriesClinched, seriesWinner, winsToClinch } from "../systems/postseason.js";
 import { nextPendingEvent, clearPendingEvent, simulateAllStarGame, applyAllStarReward, simulateIntlTournamentGame, applyIntlTournamentReward } from "../systems/seasonEvents.js";
 import { computeHallOfFameScore, hofRank } from "../systems/hallOfFame.js";
+import { recordRun, loadRegressionMeta } from "../systems/regression.js";
 
 export function renderWeekly(root, route, opts = {}) {
   const { player, league, season } = state;
@@ -2282,6 +2283,13 @@ function renderCareerEndedPanel(route) {
   const hof = _computeHofForState();
   const rank = _hofRank(hof.total);
 
+  // 회귀 점수 적립 — 캐릭터당 1회. recordRun 이 멱등이 아니므로 player 플래그로 가드.
+  if (!state.regression) loadRegressionMeta();
+  if (!state.player.regressionScored) {
+    recordRun(hof.total);
+    state.player.regressionScored = true;
+  }
+
   const title = document.createElement("h3");
   title.style.cssText = "margin:0 0 8px; font-size:15px; color:var(--accent-2);";
   title.textContent = t("hof." + rank + "Title");
@@ -2309,11 +2317,38 @@ function renderCareerEndedPanel(route) {
   }
   panel.appendChild(breakdownBox);
 
-  const btn = document.createElement("button");
-  btn.textContent = t("common.returnToMenu");
-  btn.style.cssText = "width:100%; padding:10px; margin-top:4px;";
-  btn.addEventListener("click", () => route("menu"));
-  panel.appendChild(btn);
+  // 회귀 점수 + 누적 잔액 박스
+  const regressionBox = document.createElement("div");
+  regressionBox.style.cssText = "background:var(--panel-2); border:1px solid var(--accent); border-radius:6px; padding:10px; margin-bottom:10px; font-size:12px; text-align:center;";
+  const earnLine = document.createElement("div");
+  earnLine.style.cssText = "font-weight:700; color:var(--accent); margin-bottom:4px;";
+  earnLine.textContent = t("regression.scoreEarned", { score: hof.total });
+  regressionBox.appendChild(earnLine);
+  const balLine = document.createElement("div");
+  balLine.className = "muted small";
+  balLine.style.cssText = "font-size:11px;";
+  balLine.textContent = t("regression.runBalance", { balance: state.regression?.balance ?? 0 });
+  regressionBox.appendChild(balLine);
+  panel.appendChild(regressionBox);
+
+  // 상점 진입 + 메뉴로 (가로 2버튼)
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "display:grid; grid-template-columns:1fr 1fr; gap:8px;";
+
+  const shopBtn = document.createElement("button");
+  shopBtn.className = "primary";
+  shopBtn.textContent = t("regression.enterShop");
+  shopBtn.style.cssText = "padding:10px; font-weight:700;";
+  shopBtn.addEventListener("click", () => route("shop"));
+  btnRow.appendChild(shopBtn);
+
+  const menuBtn = document.createElement("button");
+  menuBtn.textContent = t("common.returnToMenu");
+  menuBtn.style.cssText = "padding:10px;";
+  menuBtn.addEventListener("click", () => route("menu"));
+  btnRow.appendChild(menuBtn);
+
+  panel.appendChild(btnRow);
   return panel;
 }
 

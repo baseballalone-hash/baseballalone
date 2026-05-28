@@ -425,6 +425,89 @@ export const en = {
     leaveResult:  "Signed with {team} — Fame +12",
   },
 
+  // NewGame+ regression — regression.js / shop.js / retirement panel
+  regression: {
+    scoreEarned:  "+{score} Regression points earned",
+    runBalance:   "Total balance: {balance}",
+    menuBalance:  "{balance} pts · {runs} runs",
+    enterShop:    "Open Shop",
+  },
+
+  shop: {
+    title:           "Regression Shop",
+    backToMenu:      "Menu",
+    balance:         "Balance",
+    totalEarned:     "Earned",
+    runs:            "Runs",
+    tabTalent:       "Talent",
+    tabCap:          "Cap",
+    tabStart:        "Start",
+    tabTrait:        "Trait",
+    tabRelic:        "Relic",
+    cost:            "{cost} pts",
+    owned:           "Owned",
+    equipped:        "Equipped",
+    lockedTier:      "Prev tier required",
+    lockedAchievement: "Locked",
+    full:            "Full",
+    unlockReq:       "Unlock: {req}",
+
+    talentDesc:      "Permanently expand your next character's talent slots. Current: {current}.",
+    talentTierTitle: "Talent tier {n} ({total} talents)",
+    talentTierDesc:  "Adds 1 talent slot. All owned talent boosts stack.",
+
+    capDesc:         "Permanently raise stage stat caps. Each group stacks tier 1 → 2 → 3.",
+    capGroup: {
+      amateur: "Amateur (HS · Univ)",
+      kbo:     "KBO (1st · 2nd)",
+      mlb:     "MLB (Minor · Major)",
+    },
+    capTierTitle:    "Tier {tier} — cap +{add}",
+
+    startDesc:       "Bonus starting stats for your next character. Consumed once on creation.",
+    start: {
+      balanced:      "Balanced",
+      battingFocus:  "Batting Focus",
+      pitchingFocus: "Pitching Focus",
+    },
+    startDescOf: {
+      balanced:      "All 10 stats +5",
+      battingFocus:  "5 batter stats +10",
+      pitchingFocus: "5 pitcher stats +10",
+    },
+
+    traitDesc:       "Equip up to 3 traits. One-shot for next character. ({equipped}/3)",
+    relicDesc:       "Equip up to 2 relics. One-shot for next character. ({equipped}/2)",
+  },
+
+  trait: {
+    steel_mental:  { name: "Steel Mental",  desc: "Injury chance ×0.5" },
+    learner:       { name: "Learner",       desc: "First season training ×2" },
+    stardom:       { name: "Stardom",       desc: "Fame gain ×1.5" },
+    clutch:        { name: "Clutch",        desc: "9th+ walkoff chance ×2" },
+    big_game:      { name: "Big Game",      desc: "Finals/postseason reward ×1.5" },
+    prime_extend:  { name: "Extended Prime", desc: "Aging delay +3 years" },
+    legend_heir:   { name: "Legend's Heir", desc: "Starting fame +50" },
+    iron_arm:      { name: "Iron Arm",      desc: "Severe injury: zero Tommy John chance" },
+  },
+
+  relic: {
+    past_life_notes: { name: "Past Life Notes", desc: "First season training ×2" },
+    lucky_bat:       { name: "Lucky Bat",       desc: "Walkoff chance +5%p" },
+    calling_card:    { name: "Calling Card",    desc: "Draft round +1" },
+    mentor_letter:   { name: "Mentor's Letter", desc: "Auto-train deficit boost ×1.5" },
+    prosthetic:      { name: "Prosthetic",      desc: "Injury recovery ×2" },
+    golden_glove:    { name: "Golden Glove",    desc: "Error chance ×0.5" },
+  },
+
+  unlock: {
+    default:           "Default",
+    walkoff_one:       "1 Walkoff",
+    championship_one:  "1 Championship",
+    hof_inducted:      "Hall of Fame",
+    severe_recovered:  "Severe injury recovered",
+  },
+
   // Hall of Fame (hallOfFame.js / retirement ending)
   hof: {
     hofTitle:           "🏛 Hall of Fame Inductee",

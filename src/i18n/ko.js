@@ -428,6 +428,89 @@ export const ko = {
     leaveResult:  "{team} 로 이적 — 명성 +12",
   },
 
+  // 회귀(NewGame+) — regression.js / shop.js / 은퇴 패널
+  regression: {
+    scoreEarned:  "회귀 점수 +{score} 획득",
+    runBalance:   "누적 잔액 {balance}점",
+    menuBalance:  "잔액 {balance}점 · 회귀 {runs}회",
+    enterShop:    "상점 보기",
+  },
+
+  shop: {
+    title:           "회귀 상점",
+    backToMenu:      "메뉴로",
+    balance:         "잔액",
+    totalEarned:     "누적",
+    runs:            "회귀",
+    tabTalent:       "재능",
+    tabCap:          "상한",
+    tabStart:        "시작",
+    tabTrait:        "특성",
+    tabRelic:        "유물",
+    cost:            "{cost}점",
+    owned:           "보유",
+    equipped:        "장착됨",
+    lockedTier:      "이전 tier 필요",
+    lockedAchievement: "잠금",
+    full:            "꽉 참",
+    unlockReq:       "해금: {req}",
+
+    talentDesc:      "다음 캐릭터의 재능 슬롯 수를 영구적으로 확장한다. 현재 보유 슬롯 {current}개.",
+    talentTierTitle: "재능 슬롯 tier {n} (총 {total}재능)",
+    talentTierDesc:  "추가 재능 슬롯 1칸. 보유한 재능들의 boost 가 합산 적용된다.",
+
+    capDesc:         "stage 별 능력치 cap 을 영구적으로 끌어올린다. 그룹별로 tier 1→2→3 누적.",
+    capGroup: {
+      amateur: "아마추어 (고교·대학)",
+      kbo:     "KBO (1군·2군)",
+      mlb:     "MLB (마이너·메이저)",
+    },
+    capTierTitle:    "tier {tier} — 능력치 cap +{add}",
+
+    startDesc:       "다음 캐릭터의 시작 능력치 보너스. 캐릭터 생성 1회 적용 후 소진.",
+    start: {
+      balanced:      "균형",
+      battingFocus:  "타격 집중",
+      pitchingFocus: "투구 집중",
+    },
+    startDescOf: {
+      balanced:      "타자 5종 + 투수 5종 각 +5",
+      battingFocus:  "타자 5종 각 +10",
+      pitchingFocus: "투수 5종 각 +10",
+    },
+
+    traitDesc:       "특성을 최대 3개까지 장착. 다음 캐릭터 1회 효과. ({equipped}/3 장착)",
+    relicDesc:       "유물을 최대 2개까지 장착. 다음 캐릭터 1회 효과. ({equipped}/2 장착)",
+  },
+
+  trait: {
+    steel_mental:  { name: "강철멘탈",   desc: "부상 확률 ×0.5" },
+    learner:       { name: "학습자",     desc: "첫 시즌 훈련 효율 ×2" },
+    stardom:       { name: "스타성",     desc: "명성 획득 ×1.5" },
+    clutch:        { name: "클러치",     desc: "9회+ 끝내기 확률 ×2" },
+    big_game:      { name: "빅게임",     desc: "결승/포스트시즌 보상 ×1.5" },
+    prime_extend:  { name: "전성기 연장", desc: "노화 시작 +3년" },
+    legend_heir:   { name: "전설의 후계자", desc: "시작 명성 +50" },
+    iron_arm:      { name: "철완",       desc: "severe 부상 시 토미존 확률 0" },
+  },
+
+  relic: {
+    past_life_notes: { name: "전생의 노트",  desc: "첫 시즌 훈련 ×2" },
+    lucky_bat:       { name: "행운의 배트",  desc: "끝내기 확률 +5%p" },
+    calling_card:    { name: "명함",         desc: "신인 드래프트 라운드 +1" },
+    mentor_letter:   { name: "멘토의 편지",  desc: "자동훈련 부족도 보정 ×1.5" },
+    prosthetic:      { name: "의수",         desc: "부상 회복 속도 ×2" },
+    golden_glove:    { name: "황금 글러브",  desc: "실책 확률 ×0.5" },
+  },
+
+  unlock: {
+    default:           "기본",
+    walkoff_one:       "끝내기 1회",
+    championship_one:  "우승 1회",
+    hof_inducted:      "명예의 전당 헌액",
+    severe_recovered:  "severe 부상 회복",
+  },
+
   // 명예의 전당 (hallOfFame.js / 은퇴 엔딩)
   hof: {
     hofTitle:           "🏛 명예의 전당 헌액",
