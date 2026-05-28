@@ -134,9 +134,11 @@
 
 ---
 
-## 3.5. 차후 개발 — 회귀 시스템 (Regression / NewGame+)
+## 3.5. 회귀 시스템 (Regression / NewGame+) — v0.6 구현 완료
 
-> 2026-05-28 설계 확정. 구현 대기.
+> 2026-05-28 설계 확정 → 같은 날 5 phase 일괄 구현 완료.
+> P1 (메타 영속화 + 상점 카탈로그) / P2 (은퇴 모달 + 5탭 UI) / P3 (createPlayer 자동 반영) /
+> P4a-b (14 효과 wiring) / P5 (도전과제 4종 해금).
 
 **TL;DR**: 은퇴 시 누적된 메타 점수로 5탭 상점에서 강화 구매 → 다음 캐릭터 빌드. 영구 누적(재능 슬롯·stage cap) + 캐릭터 한정 재구매(시작 능력치·특성·유물) 하이브리드.
 
@@ -381,3 +383,4 @@ mkdir -p /tmp/node && tar -xJf /tmp/node.tar.xz -C /tmp/node --strip-components=
 - 2026-05-27 v0.5.1 — #13 일본 프로야구 영구 삭제 (stage/cap/팀풀/i18n/aged range/simulator 전수). #16 트레이드 시스템 (`career.js:maybeTradeOffer` 8% 확률 + `applyTradeAccept`, 휴식기 진입 시 FA 다음 단계). 차후 작업 = 회귀 시스템 (섹션 3.5) 뿐.
 - 2026-05-27 v0.5.2 — 문서 전수 정리. TL;DR/인벤토리/갭 표를 v0.5.1 기준으로 재작성. §6 신규 — probe 스크립트 사용법 + 현실 비교 체크리스트 + Node 런타임 임시 설치 가이드. 섹션 번호 재정렬 (§3.5 회귀 시스템 / §6 검증 / §7 변경 로그).
 - 2026-05-28 v0.5.3 — §3.5 회귀 시스템 설계 확정 (구현 대기). 점수 = HoF 점수 재활용, 5탭 상점 (재능 슬롯·stage cap = 영구 / 시작 능력치·특성·유물 = 캐릭터 한정 재구매), 도전과제 해금. 카탈로그 + 저장 스키마 + 구현 순서 + 충돌 영역 명시. `probe-career.mjs` 에 피크/최종 stat dump 추가 (회귀 보상 강도 가늠용). probe 검증 결과: 첫 컨택형 캐릭터 contact ~145(cap 91%), 나머지 50~60%, mental cap 초과 버그(183) 별도 발견.
+- 2026-05-28 v0.6 — 거대 일괄 patch. ① **회귀(NewGame+) P1~P5 완료** — 5탭 상점(`shop.js`) + 14 효과 wiring (`traitEffects.js` + 각 시스템) + 도전과제 4종 해금. `probe-regression.mjs` 13 섹션 89 OK. ② **Cloud Save Phase A~D** — Firebase Anonymous Auth + Google linking, Firestore `saves/{uid}` 단일 doc, 사용자 명시 트리거만 (1인생 ~5-10 writes), `firestore.rules` 본인만 접근, 로컬/클라우드 timestamp 충돌 모달. ③ **Phase 2 시각화** — 구종 5종 + 좌/우 매치업 페널티 + 메인 라인업 슬롯 + 수비 포지션 + 다이아몬드 cubic bezier 타구 궤적 + 베이스 점 + 스킵 버튼. ④ **UI 리팩토링** — topbar `⚙ 설정` 모달 + ⏸/▶ 분리, 결승 모달 라이브 로그 5줄 고정, 결승 모달 자동스킵 토글, 결승 시즌종료 우선, 국제대회 휴식기 자동 진행, 결승 모달 출장 boolean 표시. ⑤ **저장 시스템 보강** — `season.seasonResults` 누적 제거 (3.7 MB 폭증 근본 fix), `weekResults` slim, Firestore nested-array 변환, quota 진단/응급 슬림화, `pendingEvents` 저장 추가. ⑥ **대학야구 4개 대회** + finals.js univ stage 지원. ⑦ **게임 이름 변경** — "나혼자만 자동야구" → "9회말 환생 / Ninth Inning Rebirth", localStorage 키 `baseballalone.*` → `ninthinning.*`.

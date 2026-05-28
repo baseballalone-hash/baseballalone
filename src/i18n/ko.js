@@ -3,7 +3,7 @@ export const ko = {
   app: {
     title: "9회말 환생",
     logo: "9회말 환생",
-    version: "v0.3 · Phase 1+α",
+    version: "v0.6 · NewGame+ / Cloud Save / Phase 2",
   },
 
   nav: {

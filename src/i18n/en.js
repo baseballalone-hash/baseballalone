@@ -3,7 +3,7 @@ export const en = {
   app: {
     title: "Ninth Inning Rebirth",
     logo: "Ninth Inning Rebirth",
-    version: "v0.3 · Phase 1+α",
+    version: "v0.6 · NewGame+ / Cloud Save / Phase 2",
   },
 
   nav: {
