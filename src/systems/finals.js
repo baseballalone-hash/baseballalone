@@ -130,7 +130,7 @@ function pushTournamentRecord(player, tournamentKey, result, mvp) {
     mvp,
   });
   // 메모리 폭발 방지 (커리어 누적 시 ~50 시즌 * 5 대회 = 250 → 안전)
-  if (player.tournamentHistory.length > 400) {
+  if (player.tournamentHistory.length > 100) {
     player.tournamentHistory.shift();
   }
 }

@@ -29,7 +29,7 @@ export function setState(patch) {
 
 export function pushLog(entry) {
   state.log.unshift({ time: Date.now(), ...entry });
-  if (state.log.length > 200) state.log.length = 200;
+  if (state.log.length > 100) state.log.length = 100;   // 옛 200 → 100 절반.
 }
 
 // 토스트 큐 — UI 가 매 렌더에서 꺼내 띄움.
@@ -47,7 +47,7 @@ export function saveGame() {
       league: state.league,
       season: state.season,
       career: state.career,
-      log: state.log.slice(0, 50),
+      log: state.log.slice(0, 30),    // 옛 50 → 30 절약
       autoMode: state.autoMode,
       paused: state.paused,
       tickSpeed: state.tickSpeed,
@@ -59,10 +59,38 @@ export function saveGame() {
       // 트리거된 뒤 처리 전 새로고침되면 모달이 사라져 보상 누락이라 반드시 저장.
       pendingEvents: state.pendingEvents,
     };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+    const serialized = JSON.stringify(payload);
+    // 진단 로그 — 1 MB 넘으면 경고. 5 MB 한도 도달 전 미리 알림.
+    if (serialized.length > 1_000_000) {
+      console.warn(`[save] payload ${(serialized.length / 1024).toFixed(0)} KB (1 MB 초과). 큰 필드 점검 권장.`);
+    }
+    localStorage.setItem(SAVE_KEY, serialized);
     return true;
   } catch (e) {
     console.error("save failed", e);
+    if (e.name === "QuotaExceededError" || e.code === 22) {
+      // 응급 — 가장 큰 휘발성 필드 비우고 재시도
+      try {
+        state.log = state.log.slice(0, 10);
+        if (state.player?.tournamentHistory?.length > 30) {
+          state.player.tournamentHistory = state.player.tournamentHistory.slice(-30);
+        }
+        const retry = JSON.stringify({
+          saveVersion: SAVE_VERSION, lastSaved: Date.now(),
+          player: state.player, league: state.league, season: state.season,
+          career: state.career, log: state.log, autoMode: state.autoMode,
+          paused: state.paused, tickSpeed: state.tickSpeed, gameDate: state.gameDate,
+          offseason: state.offseason, pendingFinal: state.pendingFinal,
+          pendingPostseason: state.pendingPostseason, pendingEvents: state.pendingEvents,
+        });
+        localStorage.setItem(SAVE_KEY, retry);
+        console.warn(`[save] quota 응급 슬림화 후 재저장 OK — ${(retry.length / 1024).toFixed(0)} KB`);
+        return true;
+      } catch (e2) {
+        console.error("save retry also failed", e2);
+        return false;
+      }
+    }
     return false;
   }
 }

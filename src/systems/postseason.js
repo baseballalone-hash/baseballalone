@@ -181,7 +181,7 @@ export function pushPostseasonRecord(player, stage, finalRound, wonChampionship)
     result,
     mvp: false,
   });
-  if (player.tournamentHistory.length > 400) player.tournamentHistory.shift();
+  if (player.tournamentHistory.length > 100) player.tournamentHistory.shift();
 }
 
 // 라운드 승/패 보상 — 우승만 보상 부여. ks/ws 는 큰 보상.
