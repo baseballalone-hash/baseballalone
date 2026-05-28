@@ -288,10 +288,11 @@ export function applyTraining(player, trainingKey) {
     gained[stat] = delta;
   }
   player.stamina = Math.max(0, player.stamina + tr.stamina);
-  // 부상 체크 — 주인공은 MAIN_INJURY_LUCK(0.4x) + injuryChance 효과(steel_mental ×0.5) 적용.
+  // 부상 체크 — 주인공은 MAIN_INJURY_LUCK(0.4x) + injuryChance 효과(steel_mental ×0.5) + 컨디션 보정.
   const lowStamina = player.stamina < 25 ? 0.02 : 0;
   const injuryMult = effectMultiplier(player, "injuryChance");  // 기본 1, steel_mental 0.5
-  if (Math.random() < (tr.injuryRisk + lowStamina) * MAIN_INJURY_LUCK * injuryMult) {
+  const condMult = conditionInjuryMultiplier(player.condition);
+  if (Math.random() < (tr.injuryRisk + lowStamina) * MAIN_INJURY_LUCK * injuryMult * condMult) {
     applyInjury(player);
   }
   if (critical) {
@@ -434,19 +435,32 @@ function applyAftereffect(player, bodyPart, severity, surgery) {
   return { affected, surgery, severity };
 }
 
-// 주간 컨디션 변화 — 호조/슬럼프 사이클
+// 주간 컨디션 변화 — 70 기준 발산. 호조/슬럼프 사이클.
+// 회복 보너스: pitcher.stamina + pitcher.mental 평균 → 70 기준 ±N pp 보정.
+// 스태미나 소모량(현재 stamina/maxStamina)도 회복에 영향 — 지친 상태에서는 컨디션 회복 둔화.
 export function tickConditionWeekly(player) {
+  // 컨디션 회복력 보정: stamina/mental 능력치 평균(50 기준) — 70 능력치라면 +2, 30이면 -2.
+  const staminaAbil = player.pitcher?.stamina ?? 50;
+  const mentalAbil  = player.pitcher?.mental  ?? 50;
+  const abilBonus = ((staminaAbil + mentalAbil) / 2 - 50) / 10;  // ±5 정도
+  // 현재 체력 소모 패널티: 체력 50 미만이면 회복 둔화.
+  const fatiguePenalty = (player.stamina ?? 100) < 50 ? -2 : 0;
+  // 70 기준 평균회귀 — 70 이상이면 떨어지는 쪽, 70 미만이면 올라가는 쪽으로 drift.
+  const driftBase = player.condition >= 70 ? -1 : 1;
+
   if (player.conditionTrend > 0) {
-    player.condition = clamp(player.condition + rndInt(2, 6), 0, 100);
+    const delta = rndInt(2, 6) + Math.round(abilBonus * 0.3);
+    player.condition = clamp(player.condition + delta, 0, 100);
     player.conditionTrend -= 1;
   } else if (player.conditionTrend < 0) {
-    player.condition = clamp(player.condition - rndInt(2, 6), 0, 100);
+    const delta = rndInt(2, 6) - Math.round(abilBonus * 0.3);
+    player.condition = clamp(player.condition - Math.max(1, delta), 0, 100);
     player.conditionTrend += 1;
   } else {
-    // 평균회귀 + 작은 변동
-    const drift = player.condition > 60 ? -1 : player.condition < 40 ? 1 : 0;
-    player.condition = clamp(player.condition + drift + rndInt(-4, 4), 0, 100);
-    // 5% 확률로 새 사이클 진입
+    // 평균회귀(70 기준) + 작은 변동 + 능력치 회복 보너스 + 피로 패널티
+    const drift = driftBase + Math.round(abilBonus * 0.4) + fatiguePenalty;
+    player.condition = clamp(player.condition + drift + rndInt(-3, 3), 0, 100);
+    // 8% 확률로 새 사이클 진입
     if (Math.random() < 0.08) {
       player.conditionTrend = Math.random() < 0.5 ? rndInt(1, 3) : -rndInt(1, 3);
     }
@@ -585,8 +599,14 @@ export function overallScore(player) {
   return +((bat * 0.6 + pit * 0.4)).toFixed(1);
 }
 
+// 컨디션 70 을 기준으로 +/− 작용. cond=70 → modifier 0, cond=100 → +0.43, cond=0 → -1.0.
+// 실제 게임 영향은 *0.3 곱연산으로 합산되므로 cond=100 시 +13%, cond=0 시 -30% 정도.
+function conditionModifier(condition) {
+  return (condition - 70) / 70;
+}
+
 export function getEffectiveBatter(player) {
-  const condMod = (player.condition - 50) / 100; // -0.5 ~ +0.5
+  const condMod = conditionModifier(player.condition);
   const fatigueMod = player.stamina < 50 ? -(50 - player.stamina) * 0.003 : 0;
   const injuryMod = player.injury ? -0.25 : 0;
   const total = 1 + condMod * 0.3 + fatigueMod + injuryMod;
@@ -596,13 +616,20 @@ export function getEffectiveBatter(player) {
 }
 
 export function getEffectivePitcher(player) {
-  const condMod = (player.condition - 50) / 100;
+  const condMod = conditionModifier(player.condition);
   const fatigueMod = player.stamina < 50 ? -(50 - player.stamina) * 0.003 : 0;
   const injuryMod = player.injury ? -0.25 : 0;
   const total = 1 + condMod * 0.3 + fatigueMod + injuryMod;
   const out = {};
   for (const stat of PITCHER_STATS) out[stat] = player.pitcher[stat] * total;
   return out;
+}
+
+// 컨디션에 따른 부상 확률 보정. <50 ×1.5, >80 ×0.7, 그 외 ×1.
+export function conditionInjuryMultiplier(condition) {
+  if (condition < 50) return 1.5;
+  if (condition > 80) return 0.7;
+  return 1.0;
 }
 
 function rndInt(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }

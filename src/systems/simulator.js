@@ -4,7 +4,7 @@
 
 import { getTeamById } from "./league.js";
 import { npcOverall } from "./npc.js";
-import { getEffectiveBatter, getEffectivePitcher, BATTER_STATS, PITCHER_STATS, emptyStats, MAIN_INJURY_LUCK } from "./player.js";
+import { getEffectiveBatter, getEffectivePitcher, BATTER_STATS, PITCHER_STATS, emptyStats, MAIN_INJURY_LUCK, conditionInjuryMultiplier } from "./player.js";
 import { effectMultiplier, effectAdd } from "./traitEffects.js";
 import { pickPitch, handMatchupPenalty } from "./pitches.js";
 
@@ -636,9 +636,11 @@ function playHalfInning(battingLineup, mound, myBox, myPbox, events, nextBatter,
     // 만루 여부 — 만루 홈런 검출용. applyResult 호출 전 캡처.
     const basesLoadedBeforeAB = !!(bases[0] && bases[1] && bases[2]);
 
-    // HBP 부상 굴림 — 메인은 myBox._hbpInjury 에 stash, NPC 는 즉시 injury 부여
+    // HBP 부상 굴림 — 메인은 myBox._hbpInjury 에 stash, NPC 는 즉시 injury 부여.
+    // 메인은 컨디션 보정 적용 (낮은 컨디션 → 부상 확률 ↑).
     if (resolvedType === "HBP") {
-      const rate = isMainBat ? HBP_INJURY_RATE * MAIN_INJURY_LUCK : HBP_INJURY_RATE;
+      const mainCondMult = isMainBat && mainPlayer ? conditionInjuryMultiplier(mainPlayer.condition) : 1;
+      const rate = isMainBat ? HBP_INJURY_RATE * MAIN_INJURY_LUCK * mainCondMult : HBP_INJURY_RATE;
       if (Math.random() < rate) {
         const inj = rollHbpSeverity();
         if (isMainBat) {
