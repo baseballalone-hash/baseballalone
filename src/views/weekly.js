@@ -141,7 +141,7 @@ function buildFinalAnnounce(dialog, final, rerender) {
   desc.textContent = t("weekly.finalAdvanceDesc", { opponent: final.opponent.name });
   dialog.appendChild(desc);
 
-  // 메인 출장 여부 — 메인 팀 SP 풀과의 코치판단 결과로 등판 확률 미리 표시
+  // 메인 출장 여부 — 코치판단 결과를 boolean 으로 표시 (확률 > 0 이면 출전).
   const myTeam = getPlayerTeam(state.league);
   const ch = appearanceChance(state.player, myTeam);
   const lineup = document.createElement("div");
@@ -152,10 +152,10 @@ function buildFinalAnnounce(dialog, final, rerender) {
   lineup.style.background = "var(--panel-2)";
   lineup.style.border = "1px solid var(--border)";
   lineup.style.borderRadius = "6px";
-  const pct = v => (isFinite(v) ? Math.round(v * 100) : 0);
+  const onOff = v => (v > 0 ? t("weekly.finalAppearOn") : t("weekly.finalAppearOff"));
   lineup.innerHTML = t("weekly.finalAppearance", {
-    bat: pct(ch.bat),
-    pit: pct(ch.pitch),
+    bat: onOff(ch.bat),
+    pit: onOff(ch.pitch),
   });
   dialog.appendChild(lineup);
 
@@ -1645,7 +1645,7 @@ function renderCareerHighGrid(player) {
   grid.appendChild(infoBlock(t("weekly.statH"),  max(s => s.h),  null, "sm"));
   grid.appendChild(infoBlock(t("weekly.statEra"), bestERA(), null, "sm"));
   grid.appendChild(infoBlock(t("weekly.statKK"),  max(s => s.pK), null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statIp"),  max(s => s.ip), null, "sm"));
+  grid.appendChild(infoBlock(t("weekly.statIp"),  max(s => s.ip).toFixed(1), null, "sm"));
   grid.appendChild(infoBlock(t("weekly.statPa"),  max(s => s.pa), null, "sm"));
   grid.appendChild(infoBlock(t("weekly.statG"),   max(s => s.games), null, "sm"));
 
@@ -1680,7 +1680,7 @@ function renderCareerTotalsBody(player) {
   grid.appendChild(infoBlock(t("weekly.statHr"),  String(hr), null, "sm"));
   grid.appendChild(infoBlock(t("weekly.statPa"),  String(pa), null, "sm"));
   grid.appendChild(infoBlock(t("weekly.statKK"),  String(pK), null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statIp"),  String(ip), null, "sm"));
+  grid.appendChild(infoBlock(t("weekly.statIp"),  ip.toFixed(1), null, "sm"));
   grid.appendChild(infoBlock(t("weekly.statEra"), era, null, "sm"));
 
   return grid;
