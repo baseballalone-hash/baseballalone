@@ -7,7 +7,9 @@ export const en = {
   },
 
   nav: {
-    topbarFormat: "{name} · {team} · Year {grade} · Age {age}",
+    topbarFormat: "{name} · {team} · {level} · Age {age}",
+    gradeLabel:   "Year {grade}",
+    retiredLabel: "Retired",
     teamPlaceholder: "-",
     localeToggle: "KO",
   },

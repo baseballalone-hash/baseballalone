@@ -7,7 +7,9 @@ export const ko = {
   },
 
   nav: {
-    topbarFormat: "{name} · {team} · {grade}학년 · {age}세",
+    topbarFormat: "{name} · {team} · {level} · {age}세",
+    gradeLabel:   "{grade}학년",
+    retiredLabel: "은퇴",
     teamPlaceholder: "-",
     localeToggle: "EN",   // 현재 KO일 때 토글 버튼은 다른 언어 라벨 노출
   },

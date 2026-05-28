@@ -54,10 +54,19 @@ function updateTopbar() {
   if (!el) return;
   if (state.player) {
     const p = state.player;
+    // 단계별 level 라벨 — 고교/대학은 "{grade}학년", 프로·MLB 는 stageShort (1군/2군/A/AA/AAA/메이저).
+    let level;
+    if (p.stage === "high" || p.stage === "univ") {
+      level = t("nav.gradeLabel", { grade: p.grade });
+    } else if (p.stage === "retire") {
+      level = t("nav.retiredLabel");
+    } else {
+      level = t("stageShort." + p.stage);
+    }
     el.innerHTML = t("nav.topbarFormat", {
       name: `<strong>${escapeHtml(p.name)}</strong>`,
       team: escapeHtml(p.teamName ?? t("nav.teamPlaceholder")),
-      grade: p.grade,
+      level,
       age: p.age,
     });
   } else {
