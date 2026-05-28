@@ -3039,6 +3039,25 @@ let _seasonEventModalShown = false;
 function showSeasonEventModalIfNeeded(route) {
   const ev = nextPendingEvent();
   if (!ev || _seasonEventModalShown) return;
+
+  // 라이브 모달 자동 진행 설정 (skipFinalsModal) — 결승/PO 와 통합. ON 이면 모달 안 띄우고 자동 시뮬+보상+토스트.
+  if (state.settings?.skipFinalsModal) {
+    if (ev.handlerKey === "allStarLive") {
+      applyAllStarReward(state.player);
+      pushToast(t("weekly.allStarAutoDone"), "good");
+      clearPendingEvent();
+      saveGame();
+      return;
+    }
+    if (ev.handlerKey === "intlTournamentLive") {
+      applyIntlTournamentReward(state.player, ev.key, ev.year);
+      pushToast(t("weekly.intlTournamentAutoDone", { tournament: t("seasonEvent." + ev.key) }), "good");
+      clearPendingEvent();
+      saveGame();
+      return;
+    }
+  }
+
   if (ev.handlerKey === "allStarLive") {
     _seasonEventModalShown = true;
     showAllStarModal(route);
