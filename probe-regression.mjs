@@ -162,15 +162,18 @@ ok(state.regression.loadout.startingStat === "balanced", "loadout.startingStat �
 ok(setStartingStat("invalid_preset") === false, "invalid preset → false");
 ok(setStartingStat(null) === true, "null 허용 (선택 해제)");
 
-// traits — default 해금된 것만 장착 가능 (steel_mental/learner/stardom)
+// traits — 새 흐름: 장착하려면 ownedTraits 에 있어야 함. probe 에서는 직접 채워서 검증.
+state.regression.permanentPurchases.ownedTraits = ["steel_mental", "learner", "stardom"];
 ok(setTraits(["steel_mental", "learner", "stardom"]) === true, "default 3종 장착");
 ok(state.regression.loadout.traits.length === 3, "traits.length 3");
 ok(setTraits(["steel_mental", "learner", "stardom", "clutch"]) === false, "4개 거부");
 ok(setTraits(["clutch"]) === false, "미해금 clutch 거부");
 unlockItem("walkoff_one");
+state.regression.permanentPurchases.ownedTraits.push("clutch");
 ok(setTraits(["clutch"]) === true, "walkoff_one 해금 후 clutch 장착 가능");
 
-// relics — 해금 개념 없음, 최대 2
+// relics — 해금 개념 없음, 최대 2. ownedRelics 사전 채우기.
+state.regression.permanentPurchases.ownedRelics = ["lucky_bat", "golden_glove"];
 ok(setRelics(["lucky_bat", "golden_glove"]) === true, "relics 2종 장착");
 ok(setRelics(["lucky_bat", "golden_glove", "calling_card"]) === false, "3개 거부");
 ok(setRelics(["unknown_relic"]) === false, "알수없는 키 거부");
@@ -265,6 +268,8 @@ ok(tr.relics.length === 1 && tr.relics[0] === "lucky_bat", `relics attach (${tr.
 // 9.6 consumeLoadoutForCharacter — snapshot + reset
 resetRegressionMeta();
 setStartingStat("balanced");
+state.regression.permanentPurchases.ownedTraits = ["steel_mental"];
+state.regression.permanentPurchases.ownedRelics = ["lucky_bat"];
 setTraits(["steel_mental"]);
 setRelics(["lucky_bat"]);
 const snap = consumeLoadoutForCharacter();

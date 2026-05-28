@@ -497,6 +497,7 @@ export const ko = {
     cost:            "{cost}점",
     owned:           "보유",
     equipped:        "장착됨",
+    equippable:      "장착 가능",
     lockedTier:      "이전 tier 필요",
     lockedAchievement: "잠금",
     full:            "꽉 참",

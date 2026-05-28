@@ -29,6 +29,8 @@ export function defaultRegressionMeta() {
     permanentPurchases: {
       talentSlots: 0,                              // 0~2 (추가 슬롯 수. 총 1+N 재능)
       capBoosts: { amateur: 0, kbo: 0, mlb: 0 },   // 각 0~3
+      ownedTraits: [],                              // 영구 소유 trait 키 — 장착/해제와 무관, 한 번 사면 보존
+      ownedRelics: [],                              // 영구 소유 relic 키
     },
     unlockedItems: [],                              // 도전과제 해금 키
     loadout: {
@@ -48,10 +50,21 @@ function migrateMeta(data) {
     ...base.permanentPurchases.capBoosts,
     ...(data?.permanentPurchases?.capBoosts ?? {}),
   };
+  out.permanentPurchases.ownedTraits = Array.isArray(data?.permanentPurchases?.ownedTraits)
+    ? [...data.permanentPurchases.ownedTraits] : [];
+  out.permanentPurchases.ownedRelics = Array.isArray(data?.permanentPurchases?.ownedRelics)
+    ? [...data.permanentPurchases.ownedRelics] : [];
   out.unlockedItems = Array.isArray(data?.unlockedItems) ? [...data.unlockedItems] : [];
   out.loadout = { ...base.loadout, ...(data?.loadout ?? {}) };
   out.loadout.traits = Array.isArray(data?.loadout?.traits) ? [...data.loadout.traits] : [];
   out.loadout.relics = Array.isArray(data?.loadout?.relics) ? [...data.loadout.relics] : [];
+  // 옛 세이브 자동 승계 — 이미 장착되어 있던 trait/relic 은 영구 소유로 간주.
+  for (const k of out.loadout.traits) {
+    if (!out.permanentPurchases.ownedTraits.includes(k)) out.permanentPurchases.ownedTraits.push(k);
+  }
+  for (const k of out.loadout.relics) {
+    if (!out.permanentPurchases.ownedRelics.includes(k)) out.permanentPurchases.ownedRelics.push(k);
+  }
   return out;
 }
 
@@ -173,6 +186,7 @@ export function setStartingStat(presetKey) {
   return true;
 }
 
+// 장착만 담당 — 포인트 차감 없음. 이미 소유한(ownedTraits) 항목만 장착 가능.
 export function setTraits(traitKeys) {
   const m = ensureMeta();
   if (!Array.isArray(traitKeys)) return false;
@@ -180,22 +194,52 @@ export function setTraits(traitKeys) {
   for (const k of traitKeys) {
     if (!TRAITS[k]) return false;
     if (!isTraitUnlocked(k, m.unlockedItems)) return false;
+    if (!m.permanentPurchases.ownedTraits.includes(k)) return false;
   }
   m.loadout.traits = [...traitKeys];
   saveRegressionMeta();
   return true;
 }
 
+// 장착만 담당 — 포인트 차감 없음. 이미 소유한(ownedRelics) 항목만 장착 가능.
 export function setRelics(relicKeys) {
   const m = ensureMeta();
   if (!Array.isArray(relicKeys)) return false;
   if (relicKeys.length > 2) return false;
   for (const k of relicKeys) {
     if (!RELICS[k]) return false;
+    if (!m.permanentPurchases.ownedRelics.includes(k)) return false;
   }
   m.loadout.relics = [...relicKeys];
   saveRegressionMeta();
   return true;
+}
+
+// trait 구매 — 미소유시 비용 차감 + ownedTraits 등록. 소유 중이면 no-op.
+export function purchaseTrait(key) {
+  const m = ensureMeta();
+  if (!TRAITS[key]) return { ok: false, reason: "invalid" };
+  if (!isTraitUnlocked(key, m.unlockedItems)) return { ok: false, reason: "locked" };
+  if (m.permanentPurchases.ownedTraits.includes(key)) return { ok: false, reason: "owned" };
+  const cost = TRAITS[key].cost;
+  if (m.balance < cost) return { ok: false, reason: "insufficient_balance" };
+  m.balance -= cost;
+  m.permanentPurchases.ownedTraits.push(key);
+  saveRegressionMeta();
+  return { ok: true, key, cost };
+}
+
+// relic 구매 — 미소유시 비용 차감 + ownedRelics 등록. 소유 중이면 no-op.
+export function purchaseRelic(key) {
+  const m = ensureMeta();
+  if (!RELICS[key]) return { ok: false, reason: "invalid" };
+  if (m.permanentPurchases.ownedRelics.includes(key)) return { ok: false, reason: "owned" };
+  const cost = RELICS[key].cost;
+  if (m.balance < cost) return { ok: false, reason: "insufficient_balance" };
+  m.balance -= cost;
+  m.permanentPurchases.ownedRelics.push(key);
+  saveRegressionMeta();
+  return { ok: true, key, cost };
 }
 
 export function resetLoadout() {

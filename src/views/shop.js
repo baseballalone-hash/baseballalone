@@ -19,6 +19,7 @@ import {
   loadRegressionMeta, saveRegressionMeta,
   spendBalance, addBalance,
   purchasePermanent, setStartingStat, setTraits, setRelics,
+  purchaseTrait, purchaseRelic,
 } from "../systems/regression.js";
 import {
   TALENT_SLOTS_TIERS, CAP_BOOST_TIERS, CAP_BOOST_GROUPS,
@@ -252,16 +253,22 @@ function renderTraitTab() {
 
   for (const key of Object.keys(TRAITS)) {
     const tr = TRAITS[key];
+    const owned = m.permanentPurchases.ownedTraits.includes(key);
     const equipped = m.loadout.traits.includes(key);
     const unlocked = isTraitUnlocked(key, m.unlockedItems);
     const capacity = m.loadout.traits.length < 3;
-    const canBuy = !equipped && unlocked && capacity && m.balance >= tr.cost;
+    const canBuy = !owned && unlocked && m.balance >= tr.cost;
 
+    // state 흐름:
+    //   미해금         → lockedAchievement
+    //   장착 중        → equipped (클릭 시 해제)
+    //   소유 + 미장착  → equippable (capacity OK 면 무료 장착) / full (capacity 0)
+    //   미소유 + 해금  → buyable (클릭 시 구매+장착) / insufficient (잔액 부족)
     let cardState;
     if (!unlocked) cardState = "lockedAchievement";
     else if (equipped) cardState = "equipped";
+    else if (owned) cardState = capacity ? "equippable" : "full";
     else if (canBuy) cardState = "buyable";
-    else if (!capacity) cardState = "full";
     else cardState = "insufficient";
 
     panel.appendChild(makeShopCard({
@@ -271,12 +278,18 @@ function renderTraitTab() {
       state: cardState,
       onClick: () => {
         if (equipped) {
-          // 해제 (환불 없음 — P2 단계)
+          // 무료 해제
           const next = m.loadout.traits.filter(k => k !== key);
           setTraits(next);
-        } else {
-          if (!spendBalance(tr.cost)) return;
+        } else if (owned) {
+          // 무료 장착
+          if (!capacity) return;
           setTraits([...m.loadout.traits, key]);
+        } else {
+          // 구매 + 장착
+          const r = purchaseTrait(key);
+          if (!r.ok) return;
+          if (capacity) setTraits([...m.loadout.traits, key]);
         }
         renderShop(document.getElementById("view-root"), routeRef);
       },
@@ -301,14 +314,15 @@ function renderRelicTab() {
 
   for (const key of Object.keys(RELICS)) {
     const re = RELICS[key];
+    const owned = m.permanentPurchases.ownedRelics.includes(key);
     const equipped = m.loadout.relics.includes(key);
     const capacity = m.loadout.relics.length < 2;
-    const canBuy = !equipped && capacity && m.balance >= re.cost;
+    const canBuy = !owned && m.balance >= re.cost;
 
     let cardState;
     if (equipped) cardState = "equipped";
+    else if (owned) cardState = capacity ? "equippable" : "full";
     else if (canBuy) cardState = "buyable";
-    else if (!capacity) cardState = "full";
     else cardState = "insufficient";
 
     panel.appendChild(makeShopCard({
@@ -320,9 +334,13 @@ function renderRelicTab() {
         if (equipped) {
           const next = m.loadout.relics.filter(k => k !== key);
           setRelics(next);
-        } else {
-          if (!spendBalance(re.cost)) return;
+        } else if (owned) {
+          if (!capacity) return;
           setRelics([...m.loadout.relics, key]);
+        } else {
+          const r = purchaseRelic(key);
+          if (!r.ok) return;
+          if (capacity) setRelics([...m.loadout.relics, key]);
         }
         renderShop(document.getElementById("view-root"), routeRef);
       },
@@ -332,14 +350,15 @@ function renderRelicTab() {
 }
 
 // ── 카드 컴포넌트 ────────────────────────────────────────────────
-// state: "buyable" | "owned" | "equipped" | "insufficient" | "locked" | "lockedAchievement" | "full"
+// state: "buyable" | "owned" | "equipped" | "equippable" | "insufficient" | "locked" | "lockedAchievement" | "full"
 function makeShopCard({ title, desc, cost, state: cardState, onClick }) {
   const card = document.createElement("button");
   card.type = "button";
 
   const isDisabled = cardState === "locked" || cardState === "lockedAchievement" || cardState === "insufficient" || cardState === "full" || cardState === "owned";
-  const accent = (cardState === "owned" || cardState === "equipped") ? "var(--accent)" : "var(--border)";
-  const opacity = isDisabled && cardState !== "owned" && cardState !== "equipped" ? "0.55" : "1";
+  const highlighted = cardState === "owned" || cardState === "equipped" || cardState === "equippable";
+  const accent = highlighted ? "var(--accent)" : "var(--border)";
+  const opacity = isDisabled && !highlighted ? "0.55" : "1";
 
   card.style.cssText = `
     display:block; width:100%; padding:10px; margin-bottom:6px;
@@ -372,6 +391,7 @@ function makeShopCard({ title, desc, cost, state: cardState, onClick }) {
     buyable: t("shop.cost", { cost }),
     owned:   t("shop.owned"),
     equipped: t("shop.equipped"),
+    equippable: t("shop.equippable"),
     insufficient: t("shop.cost", { cost }),
     locked:  t("shop.lockedTier"),
     lockedAchievement: t("shop.lockedAchievement"),
@@ -381,6 +401,7 @@ function makeShopCard({ title, desc, cost, state: cardState, onClick }) {
     buyable: "var(--accent)",
     owned: "var(--accent-2)",
     equipped: "var(--accent-2)",
+    equippable: "var(--accent)",
     insufficient: "var(--danger, #c66)",
     locked: "var(--muted)",
     lockedAchievement: "var(--muted)",

@@ -494,6 +494,7 @@ export const en = {
     cost:            "{cost} pts",
     owned:           "Owned",
     equipped:        "Equipped",
+    equippable:      "Equip",
     lockedTier:      "Prev tier required",
     lockedAchievement: "Locked",
     full:            "Full",
