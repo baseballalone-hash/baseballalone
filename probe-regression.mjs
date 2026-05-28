@@ -409,11 +409,11 @@ ok(r2.picked && r2.round === 2, `calling_card score 85 → round ${r2.round} (ex
 const d3 = draftPlayer(["calling_card"], 105);
 const r3 = kboDraft(d3);
 ok(r3.picked && r3.round === 1, `calling_card score 105 → round ${r3.round} (1 하한)`);
-// 2군 → 1군 승격 시나리오 (score 60 → 원래 pro2 round 6+, calling_card 로 round 5+, 그래도 pro2 유지)
-// score 60 (pro2 round 6~8) + calling_card → round 5~7. 명함 only -1 이라 1군 승격은 만족 안 됨 (round<=3 필요)
-const d4 = draftPlayer([], 60);
+// 2군 → 1군 승격 시나리오 (score 70 → 원래 pro2 round 6+, calling_card 로 round 5+, 그래도 pro2 유지)
+// 새 임계 (v0.6.1 진로 점수 분리): pro2 = score 65~75. score 70 + calling_card → round 5~7. 명함 only -1 이라 1군 승격은 만족 안 됨 (round<=3 필요)
+const d4 = draftPlayer([], 70);
 const r4 = kboDraft(d4);
-ok(r4.stage === "pro2", `baseline score 60 → ${r4.stage}`);
+ok(r4.stage === "pro2", `baseline score 70 → ${r4.stage}`);
 
 // 11.3 big_game — finalsReward ×1.5
 const big = createPlayer({ name: "B", talent: "contact", traits: ["big_game"] });

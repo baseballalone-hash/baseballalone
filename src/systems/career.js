@@ -79,8 +79,9 @@ export function transitionAfterSeason() {
   return { ended: false };
 }
 
-// 진로 종합 점수 — 능력치 평균 + 최고 능력치 보정 + 명성
-// 한 카테고리가 매우 뛰어나면 가산점 (양방향 슈퍼스타 보정)
+// 진로 종합 점수 — 능력치 평균 + 최고 능력치 보정 + 명성.
+// FA 오퍼 강도, 드래프트 라운드, 메뉴 표시용. 명성이 영향 줄 수 있음 (의도).
+// 콜업/MLB 진입 단계/MLB 오퍼는 promotionScore (실력만) 사용.
 export function compositeScore(player) {
   const b = player.batter;
   const p = player.pitcher;
@@ -93,47 +94,63 @@ export function compositeScore(player) {
   return avg + Math.max(0, max - 100) * 0.5 + (player.fame ?? 0) * 0.2;
 }
 
-// MLB 오퍼 산출 — 점수 임계별로 어느 강도의 팀에서 오퍼가 오는지 분기.
-// 반환: 오퍼 팀 배열 (가능한 한 다양화). 점수 미달 시 빈 배열.
+// 실력 점수 — 능력치 평균만. fame, max bonus 제외.
+// 콜업 사다리, MLB 진입 시작 단계, MLB 오퍼, 드래프트 stage 결정에 사용.
+// 명성 높지만 실력 낮은 캐릭터가 메이저 직행하던 문제 해소.
+export function promotionScore(player) {
+  const b = player.batter;
+  const p = player.pitcher;
+  const stats = [
+    b.contact, b.power, b.eye, b.speed, b.defense,
+    p.velocity, p.control, p.breaking, p.stamina, p.mental,
+  ];
+  return stats.reduce((a, c) => a + c, 0) / stats.length;
+}
+
+// MLB 오퍼 산출 — 실력 점수(promotionScore) 임계별로 어느 강도의 팀에서 오퍼가 오는지.
+// 반환: 매번 다른 오퍼 팀 배열 (풀 확대 + 랜덤). 점수 미달 시 빈 배열.
 //
-// 점수 임계 / 오퍼 출처:
-//   130+  → 상위 3팀 모두
-//   115+  → 상위 10팀 중 랜덤 3팀
-//   100+  → 11~20위 중 랜덤 2팀
-//    85+  → 21~30위 중 랜덤 1팀
+// 임계 / 오퍼 출처:
+//   180+  → 상위 8팀 중 랜덤 3팀 (메이저 직행급)
+//   145+  → 상위 12팀 중 랜덤 3팀
+//   120+  → 8~20위 중 랜덤 2팀
+//   100+  → 15~30위 중 랜덤 1팀
+//   < 100 → 빈 배열 (오퍼 없음)
 export function getMLBOffers(player) {
-  const score = compositeScore(player);
-  if (score < 85) return [];
+  const score = promotionScore(player);
+  if (score < 100) return [];
   const pool = getTeamPool("mlb", getLocale());
   if (!pool || pool.length === 0) return [];
   const sorted = [...pool].sort((a, b) => b.strength - a.strength);
-  if (score >= 130) return sorted.slice(0, 3);
-  if (score >= 115) return pickRandom(sorted.slice(0, 10), 3);
-  if (score >= 100) return pickRandom(sorted.slice(10, 20), 2);
-  return pickRandom(sorted.slice(20), 1);
+  if (score >= 180) return pickRandom(sorted.slice(0, 8), 3);
+  if (score >= 145) return pickRandom(sorted.slice(0, 12), 3);
+  if (score >= 120) return pickRandom(sorted.slice(8, 20), 2);
+  return pickRandom(sorted.slice(15, 30), 1);
 }
 
-// MLB 입단 시작 stage — 점수에 따라 마이너 단계에서 시작
+// MLB 입단 시작 stage — promotionScore 에 따라 마이너 단계에서 시작.
+// determineMLBStartStage 는 호출자가 이미 점수 계산했을 수 있어 score 직접 받음.
+// 명성 영향 받지 않도록 호출지에서 promotionScore(player) 결과를 넘겨야 함.
 export function determineMLBStartStage(score) {
-  if (score >= 130) return "mlb";
-  if (score >= 115) return "mlb_aaa";
-  if (score >= 100) return "mlb_aa";
+  if (score >= 180) return "mlb";
+  if (score >= 145) return "mlb_aaa";
+  if (score >= 120) return "mlb_aa";
   return "mlb_a";
 }
 
-// KBO 드래프트 결과 — 점수 기반 1군 / 2군 / 미지명 분기.
+// KBO 드래프트 결과 — 실력 점수(promotionScore) 기반 1군 / 2군 / 미지명 분기.
 // round / signingBonus 는 라이브 모달용. signingBonus 단위는 만원.
 //
 // 회귀 효과 draftRound (calling_card 유물): round 가 N 칸 좋아짐 (숫자 감소). 1라운드 미만은 없으니 1 이 하한.
 // 2군 round 도 동일하게 좋아져 1군 진입 가능 (round 1~2 면 자동 1군 승격).
 export function kboDraft(player) {
-  const score = compositeScore(player);
+  const score = promotionScore(player);
   let stage = null, round = null, signingBonus = 0;
-  if (score >= 100)     { stage = "pro1"; round = 1; signingBonus = 50000; }
-  else if (score >= 90) { stage = "pro1"; round = 2; signingBonus = 30000; }
-  else if (score >= 80) { stage = "pro1"; round = 3; signingBonus = 18000; }
-  else if (score >= 70) { stage = "pro1"; round = 4 + Math.floor(Math.random() * 2); signingBonus = 10000; }
-  else if (score >= 55) { stage = "pro2"; round = 6 + Math.floor(Math.random() * 3); signingBonus = 5000; }
+  if (score >= 110)      { stage = "pro1"; round = 1; signingBonus = 50000; }
+  else if (score >= 95)  { stage = "pro1"; round = 2; signingBonus = 30000; }
+  else if (score >= 85)  { stage = "pro1"; round = 3; signingBonus = 18000; }
+  else if (score >= 75)  { stage = "pro1"; round = 4 + Math.floor(Math.random() * 2); signingBonus = 10000; }
+  else if (score >= 65)  { stage = "pro2"; round = 6 + Math.floor(Math.random() * 3); signingBonus = 5000; }
 
   // calling_card: round 가 좋아짐 (N 칸 감소). 1 라운드가 하한.
   const roundBoost = effectAdd(player, "draftRound", "boost");
@@ -298,16 +315,17 @@ export function applyTradeAccept(player, newTeamName) {
   addFame(player, 5);
 }
 
-// 콜업 사다리 — 시즌 종료 시 능력치가 임계 넘으면 다음 단계로 자동 승격
+// 콜업 사다리 — 시즌 종료 시 실력 점수(promotionScore)가 임계 넘으면 다음 단계로 자동 승격.
+// 실제 야구의 마이너 → 메이저 깊이 반영. 메이저는 평균 180+ (cap 300 의 60%).
 const PROMOTION_LADDER = {
-  pro2:    { next: "pro1",    minScore: 80  },
-  mlb_a:   { next: "mlb_aa",  minScore: 90  },
-  mlb_aa:  { next: "mlb_aaa", minScore: 105 },
-  mlb_aaa: { next: "mlb",     minScore: 120 },
+  pro2:    { next: "pro1",    minScore: 85  },
+  mlb_a:   { next: "mlb_aa",  minScore: 110 },
+  mlb_aa:  { next: "mlb_aaa", minScore: 145 },
+  mlb_aaa: { next: "mlb",     minScore: 180 },
 };
 
 export function checkPromotion(player) {
   const rule = PROMOTION_LADDER[player.stage];
   if (!rule) return null;
-  return compositeScore(player) >= rule.minScore ? rule.next : null;
+  return promotionScore(player) >= rule.minScore ? rule.next : null;
 }
