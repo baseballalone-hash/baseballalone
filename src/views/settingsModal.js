@@ -65,6 +65,8 @@ export function openSettingsModal(route) {
     if (!gameActive) return;
     state.paused = !state.paused;
     pauseBtn.textContent = state.paused ? t("weekly.btnPlay") : t("weekly.btnPause");
+    // 재생 상태로 전환 시 모달 닫음 — 사용자가 게임 진행을 보기 편하도록.
+    if (!state.paused) closeSettingsModal();
   });
   gameSection.appendChild(pauseBtn);
 
