@@ -1965,10 +1965,34 @@ function renderSeasonEnd(root, route) {
   } else if (isGraduation) {
     wrap.appendChild(renderCareerPathPanel(route));
   } else {
-    // "확인" 버튼 → 휴식기 모달
+    // "확인" 버튼 → 휴식기 모달. 클라우드 저장 가능하면 위에 ☁️ 버튼도 함께.
     const btnPanel = document.createElement("section");
     btnPanel.className = "panel";
     btnPanel.style.padding = "10px";
+
+    // ☁️ 시즌 종료 마다 클라우드 저장 — 영구 백업 (Phase B/C wiring).
+    if (isSignedIn()) {
+      const cloudBtn = document.createElement("button");
+      cloudBtn.type = "button";
+      cloudBtn.textContent = t("cloud.saveBtn");
+      cloudBtn.style.cssText = "width:100%; padding:10px; margin-bottom:8px; font-size:13px;";
+      cloudBtn.addEventListener("click", async () => {
+        cloudBtn.disabled = true;
+        cloudBtn.textContent = t("cloud.saving");
+        saveGame();
+        const r = await saveToCloud();
+        cloudBtn.disabled = false;
+        if (r.ok) {
+          cloudBtn.textContent = t("cloud.saveSuccess");
+          pushToast(t("cloud.saveSuccess"), "good");
+        } else {
+          cloudBtn.textContent = t("cloud.saveBtn");
+          pushToast(t("cloud.saveFailed"), "bad");
+        }
+      });
+      btnPanel.appendChild(cloudBtn);
+    }
+
     const btn = document.createElement("button");
     btn.className = "primary";
     btn.textContent = t("common.confirm");
