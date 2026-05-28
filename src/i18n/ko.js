@@ -775,6 +775,7 @@ export const ko = {
     mlbOffer:    "오퍼: {teams}",
     retireLabel: "은퇴",
     retireDesc:  "야구 인생을 마감한다.",
+    confirmRetire: "정말 은퇴하시겠습니까? 통산 기록이 마감되고 명예의 전당 판정 + 회귀 점수가 적립됩니다.",
     locked:      "오퍼 없음",
     yourScore:   "종합 점수: {score}",
 

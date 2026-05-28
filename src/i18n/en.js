@@ -771,6 +771,7 @@ export const en = {
     mlbOffer:    "Offers: {teams}",
     retireLabel: "Retire",
     retireDesc:  "End your baseball career.",
+    confirmRetire: "Retire now? Career stats will be finalized — Hall of Fame ruling and Regression score will be applied.",
     locked:      "No offers",
     yourScore:   "Composite score: {score}",
 

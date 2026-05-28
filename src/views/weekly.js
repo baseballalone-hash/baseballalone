@@ -2019,6 +2019,19 @@ function renderSeasonEnd(root, route) {
       showOffseasonModal(route);
     });
     btnPanel.appendChild(btn);
+
+    // 은퇴 버튼 — 어느 시즌 종료에서도 가능. confirm 후 transitionToStage("retire") → 다음 렌더에서 careerEndedPanel.
+    const retireBtn = document.createElement("button");
+    retireBtn.type = "button";
+    retireBtn.textContent = t("careerPath.retireLabel");
+    retireBtn.style.cssText = "width:100%; padding:10px; margin-top:8px; font-size:12px; opacity:0.7;";
+    retireBtn.addEventListener("click", () => {
+      if (!confirm(t("careerPath.confirmRetire"))) return;
+      transitionToStage("retire");
+      route("weekly");
+    });
+    btnPanel.appendChild(retireBtn);
+
     wrap.appendChild(btnPanel);
   }
 
