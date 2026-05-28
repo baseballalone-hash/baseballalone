@@ -1,4 +1,7 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "hosting": {
     "public": ".",
     "ignore": [
@@ -11,7 +14,9 @@
       "assets/**",
       "EVENTS.md",
       "README.md",
-      "package*.json"
+      "package*.json",
+      "firestore.rules",
+      "probe*.mjs"
     ],
     "headers": [
       {

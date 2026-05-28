@@ -26,6 +26,8 @@ import { simulatePostseasonGame, applyRoundReward, advanceToNextRound, pushPosts
 import { nextPendingEvent, clearPendingEvent, simulateAllStarGame, applyAllStarReward, simulateIntlTournamentGame, applyIntlTournamentReward } from "../systems/seasonEvents.js";
 import { computeHallOfFameScore, hofRank } from "../systems/hallOfFame.js";
 import { recordRun, loadRegressionMeta, unlockItem } from "../systems/regression.js";
+import { saveToCloud } from "../cloud/cloudSave.js";
+import { isSignedIn } from "../cloud/auth.js";
 
 export function renderWeekly(root, route, opts = {}) {
   const { player, league, season } = state;
@@ -2336,6 +2338,31 @@ function renderCareerEndedPanel(route) {
   balLine.textContent = t("regression.runBalance", { balance: state.regression?.balance ?? 0 });
   regressionBox.appendChild(balLine);
   panel.appendChild(regressionBox);
+
+  // ☁️ 클라우드 저장 — Firebase 로그인 상태일 때만 노출 (영구 백업 유도).
+  // 은퇴 시점 = 캐릭터 종료 + 회귀 메타 적립. 영구 메타 보호 위해 cloud 백업이 유용.
+  if (isSignedIn()) {
+    const cloudBtn = document.createElement("button");
+    cloudBtn.type = "button";
+    cloudBtn.textContent = t("cloud.saveBtn");
+    cloudBtn.style.cssText = "width:100%; padding:10px; margin-bottom:8px;";
+    cloudBtn.addEventListener("click", async () => {
+      cloudBtn.disabled = true;
+      cloudBtn.textContent = t("cloud.saving");
+      // 최신 상태를 localStorage 에 반영 후 cloud 업로드.
+      saveGame();
+      const r = await saveToCloud();
+      cloudBtn.disabled = false;
+      if (r.ok) {
+        cloudBtn.textContent = t("cloud.saveSuccess");
+        pushToast(t("cloud.saveSuccess"), "good");
+      } else {
+        cloudBtn.textContent = t("cloud.saveBtn");
+        pushToast(t("cloud.saveFailed"), "bad");
+      }
+    });
+    panel.appendChild(cloudBtn);
+  }
 
   // 상점 진입 + 메뉴로 (가로 2버튼)
   const btnRow = document.createElement("div");

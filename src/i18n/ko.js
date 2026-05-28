@@ -437,6 +437,23 @@ export const ko = {
     unlocked:     "{name} 해금! 회귀 상점에서 사용 가능",
   },
 
+  // Cloud save (Firestore)
+  cloud: {
+    saveBtn:        "☁️ 클라우드 저장",
+    loadBtn:        "☁️ 클라우드에서 불러오기",
+    saveSuccess:    "클라우드에 저장 완료",
+    loadSuccess:    "클라우드 세이브 불러옴 — 페이지 새로고침",
+    saving:         "저장 중...",
+    loading:        "불러오는 중...",
+    notReady:       "Firebase 미설정 — firebaseConfig.js 를 채워주세요",
+    notSignedIn:    "로그인 대기 중...",
+    notFound:       "클라우드 세이브가 없습니다",
+    noLocalSave:    "저장할 로컬 세이브가 없습니다",
+    saveFailed:     "저장 실패",
+    loadFailed:     "불러오기 실패",
+    confirmOverwriteLocal: "로컬 세이브가 있습니다. 클라우드 데이터로 덮어쓰시겠습니까?",
+  },
+
   shop: {
     title:           "회귀 상점",
     backToMenu:      "메뉴로",

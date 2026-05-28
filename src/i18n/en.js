@@ -434,6 +434,23 @@ export const en = {
     unlocked:     "{name} unlocked! Available in regression shop",
   },
 
+  // Cloud save (Firestore)
+  cloud: {
+    saveBtn:        "☁️ Save to cloud",
+    loadBtn:        "☁️ Load from cloud",
+    saveSuccess:    "Saved to cloud",
+    loadSuccess:    "Loaded — refreshing page",
+    saving:         "Saving...",
+    loading:        "Loading...",
+    notReady:       "Firebase not configured — fill in firebaseConfig.js",
+    notSignedIn:    "Signing in...",
+    notFound:       "No cloud save found",
+    noLocalSave:    "No local save to upload",
+    saveFailed:     "Save failed",
+    loadFailed:     "Load failed",
+    confirmOverwriteLocal: "Local save exists. Overwrite with cloud data?",
+  },
+
   shop: {
     title:           "Regression Shop",
     backToMenu:      "Menu",

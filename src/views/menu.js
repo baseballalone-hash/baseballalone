@@ -7,6 +7,8 @@ import { state, hasSave, loadGame, deleteSave, saveGame, resetState } from "../s
 import { createPlayer, TALENTS } from "../systems/player.js";
 import { startHighSchoolCareer } from "../systems/career.js";
 import { consumeLoadoutForCharacter, loadRegressionMeta } from "../systems/regression.js";
+import { loadFromCloud } from "../cloud/cloudSave.js";
+import { isSignedIn } from "../cloud/auth.js";
 import { FACES, createFaceSVG } from "../render/avatars.js";
 import { createCharacterSVG } from "../render/character.js";
 import { createGameDate } from "../systems/tick.js";
@@ -52,6 +54,10 @@ export function renderMenu(root, route) {
   if (m && (m.totalEarned > 0 || m.balance > 0 || m.runs > 0)) {
     wrap.appendChild(renderShopEntryPanel(route));
   }
+  // 로컬 세이브가 없고 클라우드 인증되어 있으면 ☁️ 클라우드 로드 패널 — 새 기기에서 이어할 수 있게.
+  if (!hasSave() && isSignedIn()) {
+    wrap.appendChild(renderCloudLoadPanel(route));
+  }
   wrap.appendChild(renderCreatePanel(route));
   root.appendChild(wrap);
 
@@ -59,6 +65,48 @@ export function renderMenu(root, route) {
   if (hasSave() && !loadModalDismissed) {
     root.appendChild(renderLoadModal(route));
   }
+}
+
+function renderCloudLoadPanel(route) {
+  const panel = document.createElement("section");
+  panel.className = "panel";
+  panel.style.padding = "10px";
+
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex; align-items:center; gap:8px;";
+
+  const label = document.createElement("div");
+  label.className = "muted small";
+  label.style.cssText = "flex:1; font-size:11px;";
+  label.textContent = t("cloud.loadBtn");
+  row.appendChild(label);
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "primary";
+  btn.textContent = t("cloud.loadBtn");
+  btn.style.cssText = "padding:8px 12px; font-size:12px; font-weight:700;";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = t("cloud.loading");
+    const result = await loadFromCloud();
+    if (result.ok) {
+      location.reload();
+    } else {
+      btn.disabled = false;
+      btn.textContent = t("cloud.loadBtn");
+      const reasonMap = {
+        not_found: t("cloud.notFound"),
+        firebase_not_ready: t("cloud.notReady"),
+        not_signed_in: t("cloud.notSignedIn"),
+      };
+      alert(reasonMap[result.reason] ?? t("cloud.loadFailed"));
+    }
+  });
+  row.appendChild(btn);
+
+  panel.appendChild(row);
+  return panel;
 }
 
 function renderShopEntryPanel(route) {
@@ -138,6 +186,34 @@ function renderLoadModal(route) {
   loadBtn.style.fontSize = "15px";
   loadBtn.style.marginBottom = "8px";
   dialog.appendChild(loadBtn);
+
+  // ☁️ 클라우드에서 불러오기 — Firebase 로그인 상태일 때만 노출.
+  // 로컬 세이브를 덮어쓸 수 있으니 확인 모달.
+  if (isSignedIn()) {
+    const cloudBtn = button(t("cloud.loadBtn"), "", async () => {
+      cloudBtn.disabled = true;
+      cloudBtn.textContent = t("cloud.loading");
+      const result = await loadFromCloud();
+      if (result.ok) {
+        // 새로고침으로 깔끔히 새 세이브 적용 (loadGame 직접 호출도 가능하나 view 상태 꼬임 방지).
+        location.reload();
+      } else {
+        cloudBtn.disabled = false;
+        cloudBtn.textContent = t("cloud.loadBtn");
+        const reasonMap = {
+          not_found:    t("cloud.notFound"),
+          not_signed_in: t("cloud.notSignedIn"),
+          firebase_not_ready: t("cloud.notReady"),
+        };
+        alert(reasonMap[result.reason] ?? t("cloud.loadFailed"));
+      }
+    });
+    cloudBtn.style.width = "100%";
+    cloudBtn.style.padding = "10px";
+    cloudBtn.style.fontSize = "13px";
+    cloudBtn.style.marginBottom = "8px";
+    dialog.appendChild(cloudBtn);
+  }
 
   const delBtn = button(t("menu.deleteSave"), "danger", () => {
     showConfirmModal({
