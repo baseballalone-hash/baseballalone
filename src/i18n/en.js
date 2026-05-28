@@ -689,6 +689,7 @@ export const en = {
     CF: "CF",
     RF: "RF",
     DH: "DH",
+    P:  "P",
     SP: "SP",
     RP: "RP",
   },
