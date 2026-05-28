@@ -3,11 +3,11 @@
 // i18n: 사용자 표시 문자열은 모두 t() 호출.
 // 캐릭터 이름은 사용자 입력 그대로 저장 (locale 토글해도 변경되지 않음).
 
-import { state, hasSave, loadGame, deleteSave, saveGame, resetState } from "../state.js";
+import { state, hasSave, loadGame, deleteSave, saveGame, resetState, getLocalSavedAt } from "../state.js";
 import { createPlayer, TALENTS } from "../systems/player.js";
 import { startHighSchoolCareer } from "../systems/career.js";
 import { consumeLoadoutForCharacter, loadRegressionMeta } from "../systems/regression.js";
-import { loadFromCloud } from "../cloud/cloudSave.js";
+import { loadFromCloud, getCloudSaveMeta } from "../cloud/cloudSave.js";
 import { isSignedIn } from "../cloud/auth.js";
 import { FACES, createFaceSVG } from "../render/avatars.js";
 import { createCharacterSVG } from "../render/character.js";
@@ -44,6 +44,23 @@ function syncDraftTalents() {
 
 // 이어하기 모달 — 한 번 닫으면 다시 안 뜸 (페이지 새로고침으로 리셋)
 let loadModalDismissed = false;
+
+// 클라우드 세이브 메타 캐시 — 세션당 1회 조회로 read 절감.
+// null: 미조회 / undefined: 조회중 / { exists, clientLastSaved }
+let cloudMetaCache = null;
+
+// 상대 시간 ("3분 전", "어제", "2일 전") — 충돌 모달 표시용.
+function relativeTime(ts) {
+  if (!ts) return t("menu.unknownTime");
+  const diff = Math.max(0, Date.now() - ts);
+  const min = Math.floor(diff / 60000);
+  if (min < 1)  return t("menu.justNow");
+  if (min < 60) return t("menu.minAgo", { n: min });
+  const hr = Math.floor(min / 60);
+  if (hr < 24)  return t("menu.hourAgo", { n: hr });
+  const day = Math.floor(hr / 24);
+  return t("menu.dayAgo", { n: day });
+}
 
 export function renderMenu(root, route) {
   root.innerHTML = "";
@@ -174,6 +191,47 @@ function renderLoadModal(route) {
   hint.textContent = t("menu.continueHint");
   dialog.appendChild(hint);
 
+  // 로컬 세이브 timestamp + 클라우드 비교 영역 (Phase C)
+  const localSavedAt = getLocalSavedAt();
+  const compareBox = document.createElement("div");
+  compareBox.style.cssText = "background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:8px; font-size:11px; line-height:1.5;";
+
+  const localLine = document.createElement("div");
+  localLine.innerHTML = `<span class="muted">💾 ${t("menu.localSave")}:</span> <strong>${relativeTime(localSavedAt)}</strong>`;
+  compareBox.appendChild(localLine);
+
+  const cloudLine = document.createElement("div");
+  cloudLine.dataset.tb = "cloud-line";
+  cloudLine.innerHTML = `<span class="muted">☁️ ${t("menu.cloudSave")}:</span> <span class="muted">${t("cloud.loading")}</span>`;
+  compareBox.appendChild(cloudLine);
+
+  dialog.appendChild(compareBox);
+
+  // 비동기 조회 — 1 read.
+  if (isSignedIn()) {
+    (cloudMetaCache !== null
+      ? Promise.resolve(cloudMetaCache)
+      : getCloudSaveMeta().then(m => { cloudMetaCache = m; return m; }))
+      .then(m => {
+        if (!m || !m.exists) {
+          cloudLine.innerHTML = `<span class="muted">☁️ ${t("menu.cloudSave")}:</span> <span class="muted">${t("cloud.notFound")}</span>`;
+          return;
+        }
+        const cloudWhen = relativeTime(m.clientLastSaved);
+        let badge = "";
+        if (localSavedAt && m.clientLastSaved) {
+          if (m.clientLastSaved > localSavedAt + 60000) {
+            badge = ` <span style="color:var(--good);">· ${t("menu.cloudNewer")}</span>`;
+          } else if (localSavedAt > m.clientLastSaved + 60000) {
+            badge = ` <span style="color:var(--accent);">· ${t("menu.localNewer")}</span>`;
+          }
+        }
+        cloudLine.innerHTML = `<span class="muted">☁️ ${t("menu.cloudSave")}:</span> <strong>${cloudWhen}</strong>${badge}`;
+      });
+  } else {
+    cloudLine.innerHTML = `<span class="muted">☁️ ${t("menu.cloudSave")}:</span> <span class="muted">${t("cloud.notSignedIn")}</span>`;
+  }
+
   const loadBtn = button(t("menu.continueBtn"), "primary", () => {
     if (loadGame()) {
       loadModalDismissed = true;
@@ -191,11 +249,16 @@ function renderLoadModal(route) {
   // 로컬 세이브를 덮어쓸 수 있으니 확인 모달.
   if (isSignedIn()) {
     const cloudBtn = button(t("cloud.loadBtn"), "", async () => {
+      // 로컬이 클라우드보다 명백히 더 새것이면 (60초 이상) confirm.
+      const meta = cloudMetaCache ?? await getCloudSaveMeta();
+      const localTs = getLocalSavedAt();
+      if (meta?.exists && localTs && meta.clientLastSaved && localTs > meta.clientLastSaved + 60000) {
+        if (!confirm(t("cloud.confirmOverwriteLocal"))) return;
+      }
       cloudBtn.disabled = true;
       cloudBtn.textContent = t("cloud.loading");
       const result = await loadFromCloud();
       if (result.ok) {
-        // 새로고침으로 깔끔히 새 세이브 적용 (loadGame 직접 호출도 가능하나 view 상태 꼬임 방지).
         location.reload();
       } else {
         cloudBtn.disabled = false;

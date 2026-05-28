@@ -74,17 +74,29 @@ export async function loadFromCloud() {
   }
 }
 
-// 클라우드에 세이브가 존재하는지만 빠르게 확인 (1 read).
-// 메뉴 진입 시 "이어하기" 모달에서 ☁️ 버튼 표시 여부 결정용 — 호출 빈도 주의.
-export async function hasCloudSave() {
-  if (!isFirebaseReady() || !isSignedIn()) return false;
+// 클라우드 세이브 메타데이터만 (payload 불필요) — 충돌 비교용.
+// 반환: { exists, clientLastSaved } | null (에러).
+// 1 read. 호출 빈도: 메뉴 진입 시 1회.
+export async function getCloudSaveMeta() {
+  if (!isFirebaseReady() || !isSignedIn()) return null;
   const ref = saveDocRef();
-  if (!ref) return false;
+  if (!ref) return null;
   try {
     const snap = await getDoc(ref);
-    return snap.exists();
+    if (!snap.exists()) return { exists: false, clientLastSaved: null };
+    const data = snap.data();
+    return {
+      exists: true,
+      clientLastSaved: data?.clientLastSaved ?? null,
+    };
   } catch (e) {
-    console.error("[cloud] hasCloudSave 실패", e);
-    return false;
+    console.error("[cloud] getCloudSaveMeta 실패", e);
+    return null;
   }
+}
+
+// 존재 여부만 — 옛 API 호환용.
+export async function hasCloudSave() {
+  const m = await getCloudSaveMeta();
+  return !!m?.exists;
 }

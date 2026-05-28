@@ -41,6 +41,7 @@ export function saveGame() {
   try {
     const payload = {
       saveVersion: SAVE_VERSION,
+      lastSaved: Date.now(),   // 클라우드와의 timestamp 비교용 (Phase C)
       player: state.player,
       league: state.league,
       season: state.season,
@@ -123,6 +124,19 @@ export function loadGame() {
 
 export function hasSave() {
   return !!localStorage.getItem(SAVE_KEY);
+}
+
+// 로컬 세이브의 lastSaved 만 빠르게 조회 (전체 파싱 회피).
+// 충돌 비교 모달이 클라우드 timestamp 와 비교하는 용도.
+export function getLocalSavedAt() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return typeof data.lastSaved === "number" ? data.lastSaved : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 export function deleteSave() {

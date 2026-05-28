@@ -26,7 +26,7 @@ import { simulatePostseasonGame, applyRoundReward, advanceToNextRound, pushPosts
 import { nextPendingEvent, clearPendingEvent, simulateAllStarGame, applyAllStarReward, simulateIntlTournamentGame, applyIntlTournamentReward } from "../systems/seasonEvents.js";
 import { computeHallOfFameScore, hofRank } from "../systems/hallOfFame.js";
 import { recordRun, loadRegressionMeta, unlockItem } from "../systems/regression.js";
-import { saveToCloud } from "../cloud/cloudSave.js";
+import { saveToCloud, getCloudSaveMeta } from "../cloud/cloudSave.js";
 import { isSignedIn } from "../cloud/auth.js";
 
 export function renderWeekly(root, route, opts = {}) {
@@ -2434,9 +2434,15 @@ function renderCareerEndedPanel(route) {
     cloudBtn.textContent = t("cloud.saveBtn");
     cloudBtn.style.cssText = "width:100%; padding:10px; margin-bottom:8px;";
     cloudBtn.addEventListener("click", async () => {
+      // 충돌 확인: 클라우드가 로컬보다 명백히 더 새것이면 (60초+) confirm 모달.
+      // 다른 기기에서 더 진행한 세이브를 실수로 덮어쓰지 않도록.
+      const meta = await getCloudSaveMeta();
+      const localTs = Date.now();   // 지금 저장하면 lastSaved = now
+      if (meta?.exists && meta.clientLastSaved && meta.clientLastSaved > localTs + 60000) {
+        if (!confirm(t("cloud.confirmOverwriteCloud"))) return;
+      }
       cloudBtn.disabled = true;
       cloudBtn.textContent = t("cloud.saving");
-      // 최신 상태를 localStorage 에 반영 후 cloud 업로드.
       saveGame();
       const r = await saveToCloud();
       cloudBtn.disabled = false;
