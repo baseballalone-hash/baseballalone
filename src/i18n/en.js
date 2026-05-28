@@ -452,6 +452,19 @@ export const en = {
     confirmOverwriteCloud: "Cloud save is newer (saved from another device). Overwrite anyway?",
   },
 
+  // Firebase Authentication
+  auth: {
+    anonymousTitle: "Anonymous user",
+    anonymousDesc:  "Progress saved on this device only. Link Google to sync across devices.",
+    signedInTitle:  "Signed in",
+    linkGoogle:     "Link Google",
+    linking:        "Linking...",
+    linkFailed:     "Google link failed",
+    signOut:        "Sign out",
+    confirmSignOut: "Sign out? You'll revert to anonymous with a new ID.",
+    confirmSwitchAccount: "This Google account is already in use. Sign in to that account? (Current anonymous progress will be lost)",
+  },
+
   shop: {
     title:           "Regression Shop",
     backToMenu:      "Menu",

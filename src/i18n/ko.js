@@ -455,6 +455,19 @@ export const ko = {
     confirmOverwriteCloud: "클라우드 세이브가 더 최근입니다 (다른 기기에서 저장됨). 그래도 덮어쓰시겠습니까?",
   },
 
+  // Firebase Authentication
+  auth: {
+    anonymousTitle: "익명 사용자",
+    anonymousDesc:  "이 기기에만 진행이 저장됩니다. Google 연동 시 다른 기기와 동기화 가능.",
+    signedInTitle:  "로그인됨",
+    linkGoogle:     "Google 연동",
+    linking:        "연동 중...",
+    linkFailed:     "Google 연동 실패",
+    signOut:        "로그아웃",
+    confirmSignOut: "로그아웃하시겠습니까? 다시 익명으로 전환되어 새 ID 를 받습니다.",
+    confirmSwitchAccount: "이 Google 계정은 이미 사용 중입니다. 기존 계정으로 로그인하시겠습니까? (현재 익명 진행은 잃습니다)",
+  },
+
   shop: {
     title:           "회귀 상점",
     backToMenu:      "메뉴로",

@@ -8,7 +8,7 @@ import { createPlayer, TALENTS } from "../systems/player.js";
 import { startHighSchoolCareer } from "../systems/career.js";
 import { consumeLoadoutForCharacter, loadRegressionMeta } from "../systems/regression.js";
 import { loadFromCloud, getCloudSaveMeta } from "../cloud/cloudSave.js";
-import { isSignedIn } from "../cloud/auth.js";
+import { isSignedIn, isAnonymousUser, linkAnonToGoogle, signInWithGoogle, signOutCloud } from "../cloud/auth.js";
 import { FACES, createFaceSVG } from "../render/avatars.js";
 import { createCharacterSVG } from "../render/character.js";
 import { createGameDate } from "../systems/tick.js";
@@ -66,6 +66,10 @@ export function renderMenu(root, route) {
   root.innerHTML = "";
   const wrap = document.createElement("div");
   wrap.className = "stack";
+  // Google 계정 연동 / 로그인 상태 표시 — Firebase 활성일 때만.
+  if (isSignedIn()) {
+    wrap.appendChild(renderAuthPanel(route));
+  }
   // 회귀 메타가 1회 이상 적립된 경우만 상점 진입 노출
   const m = state.regression;
   if (m && (m.totalEarned > 0 || m.balance > 0 || m.runs > 0)) {
@@ -82,6 +86,82 @@ export function renderMenu(root, route) {
   if (hasSave() && !loadModalDismissed) {
     root.appendChild(renderLoadModal(route));
   }
+}
+
+function renderAuthPanel(route) {
+  const panel = document.createElement("section");
+  panel.className = "panel";
+  panel.style.padding = "10px";
+
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex; align-items:center; gap:8px;";
+
+  const left = document.createElement("div");
+  left.style.cssText = "flex:1; min-width:0;";
+
+  const user = state.cloudUser;
+  const isAnon = isAnonymousUser();
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:700; font-size:13px; margin-bottom:2px;";
+  title.textContent = isAnon ? t("auth.anonymousTitle") : (user?.displayName ?? user?.email ?? t("auth.signedInTitle"));
+  if (!isAnon) title.style.color = "var(--accent)";
+  left.appendChild(title);
+
+  const sub = document.createElement("div");
+  sub.className = "muted small";
+  sub.style.cssText = "font-size:11px;";
+  sub.textContent = isAnon ? t("auth.anonymousDesc") : (user?.email ?? "");
+  left.appendChild(sub);
+
+  row.appendChild(left);
+
+  if (isAnon) {
+    const linkBtn = document.createElement("button");
+    linkBtn.type = "button";
+    linkBtn.className = "primary";
+    linkBtn.textContent = t("auth.linkGoogle");
+    linkBtn.style.cssText = "padding:8px 12px; font-size:12px; font-weight:700; flex-shrink:0;";
+    linkBtn.addEventListener("click", async () => {
+      linkBtn.disabled = true;
+      linkBtn.textContent = t("auth.linking");
+      const result = await linkAnonToGoogle();
+      if (result.ok) {
+        location.reload();
+        return;
+      }
+      // credential-already-in-use: 그 Google 계정이 이미 다른 익명 uid 와 연결됨.
+      // 사용자에게 옵션 제공 — 기존 Google 계정 로그인 (익명 진행은 잃음).
+      if (result.code === "auth/credential-already-in-use" || result.code === "auth/email-already-in-use") {
+        if (confirm(t("auth.confirmSwitchAccount"))) {
+          const r2 = await signInWithGoogle();
+          if (r2.ok) {
+            location.reload();
+            return;
+          }
+        }
+      }
+      linkBtn.disabled = false;
+      linkBtn.textContent = t("auth.linkGoogle");
+      alert(t("auth.linkFailed"));
+    });
+    row.appendChild(linkBtn);
+  } else {
+    const signOutBtn = document.createElement("button");
+    signOutBtn.type = "button";
+    signOutBtn.textContent = t("auth.signOut");
+    signOutBtn.style.cssText = "padding:8px 10px; font-size:11px; flex-shrink:0;";
+    signOutBtn.addEventListener("click", async () => {
+      if (!confirm(t("auth.confirmSignOut"))) return;
+      signOutBtn.disabled = true;
+      await signOutCloud();
+      location.reload();
+    });
+    row.appendChild(signOutBtn);
+  }
+
+  panel.appendChild(row);
+  return panel;
 }
 
 function renderCloudLoadPanel(route) {
