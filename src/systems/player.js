@@ -119,6 +119,7 @@ export function createPlayer({
     batter,
     pitcher,
     pitches: assignPitches(pitcher),    // 메인 투수 stat 기반 구종 풀
+    position: decideMainPosition(talentList[0], batter, pitcher),
     stamina: 100,
     maxStamina: 100,
     condition: 50,
@@ -162,6 +163,22 @@ export function addFame(player, amount) {
   const delta = Math.round(amount * m);
   player.fame = (player.fame ?? 0) + delta;
   return delta;
+}
+
+// 메인 캐릭터 수비 포지션 자동 결정 — 재능 + 시작 stat 기반.
+// 한 번 결정되면 player.position 에 고정. 게임 흐름에 영향 X (단순 표시 + 미래 확장 hook).
+function decideMainPosition(talentKey, batter, pitcher) {
+  switch (talentKey) {
+    case "speedster": return Math.random() < 0.5 ? "CF" : "SS";
+    case "power":     return Math.random() < 0.5 ? "1B" : "RF";
+    case "defender":  return ["C", "SS", "CF"][Math.floor(Math.random() * 3)];
+    case "contact":   return Math.random() < 0.5 ? "2B" : "3B";
+    case "fireball":
+    case "finesse":
+    case "breakerz":  return "DH";   // 투수형 — 타석 설 일 적음
+    case "all_round":
+    default:          return Math.random() < 0.5 ? "LF" : "3B";
+  }
 }
 
 // 다중 재능 boost 합산 (곱연산). 옛 코드의 TALENTS[player.talent].boost 를 대체.

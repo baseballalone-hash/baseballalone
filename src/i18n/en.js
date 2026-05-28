@@ -668,6 +668,23 @@ export const en = {
     splitter: "SP",
   },
 
+  // Fielding positions (Phase 2)
+  position: {
+    C:  "C",
+    "1B": "1B",
+    "2B": "2B",
+    "3B": "3B",
+    SS: "SS",
+    LF: "LF",
+    CF: "CF",
+    RF: "RF",
+    DH: "DH",
+    SP: "SP",
+    RP: "RP",
+  },
+
+  lineupSlot: "#{n} in lineup",
+
   face: {
     f1: "Buzz cut",
     f2: "Helmet",

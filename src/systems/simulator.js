@@ -189,8 +189,11 @@ export function simulateGame(league, gameDef, mainPlayer) {
   const mainTeamSide = playerTeam === home ? "home" : (playerTeam === away ? "away" : null);
   const roles = mainPlayer && playerTeam ? decideRolesForGame(mainPlayer, playerTeam) : { bat: false, pitch: false };
 
-  const homeLineup = buildLineup(home, playerTeam === home && roles.bat ? mainPlayer : null);
-  const awayLineup = buildLineup(away, playerTeam === away && roles.bat ? mainPlayer : null);
+  const homeBuilt = buildLineup(home, playerTeam === home && roles.bat ? mainPlayer : null);
+  const awayBuilt = buildLineup(away, playerTeam === away && roles.bat ? mainPlayer : null);
+  const homeLineup = homeBuilt.lineup;
+  const awayLineup = awayBuilt.lineup;
+  const mainLineupSlot = homeBuilt.mainSlot ?? awayBuilt.mainSlot ?? null;   // 0-indexed
   const homePitcher = pickStartingPitcher(home, playerTeam === home && roles.pitch ? mainPlayer : null);
   const awayPitcher = pickStartingPitcher(away, playerTeam === away && roles.pitch ? mainPlayer : null);
 
@@ -330,6 +333,8 @@ export function simulateGame(league, gameDef, mainPlayer) {
       pitcherBox: roles.pitch ? myBoxPitcher : null,
       events,
       hbpInjury: myBoxBatter?._hbpInjury ?? null,
+      // 메인이 타석에 선 경우의 1-indexed 타순 (3 → "3번")
+      lineupSlot: mainLineupSlot != null ? mainLineupSlot + 1 : null,
       // 메인이 강판됐는지 — myBoxPitcher.ipOuts < 27(9이닝) 이면 강판 OR 게임 조기 종료(콜드/끝내기).
       pitcherReplaced: roles.pitch && (myBoxPitcher.ipOuts ?? 0) < 27 && !coldGame
                         && !(homeScore !== awayScore && (homeInnings.length < 9 || awayInnings.length < 9)),
@@ -430,13 +435,14 @@ function buildLineup(team, mainPlayerForBat) {
   const fallback = team.roster.filter(p => p.role === "batter" && p.injury);
   const ordered = [...healthy.sort((a, b) => npcOverall(b) - npcOverall(a)), ...fallback];
   const lineup = ordered.slice(0, 9);
+  let mainSlot = null;
   if (mainPlayerForBat) {
     const b = mainPlayerForBat.batter;
     const ovr = (b.contact + b.power + b.eye + b.speed + b.defense) / 5;
-    const slot = ovr > 60 ? 3 : ovr > 50 ? 4 : 6;
-    lineup.splice(slot, 1, asLineupEntry(mainPlayerForBat));
+    mainSlot = ovr > 60 ? 3 : ovr > 50 ? 4 : 6;
+    lineup.splice(mainSlot, 1, asLineupEntry(mainPlayerForBat));
   }
-  return lineup;
+  return { lineup, mainSlot };
 }
 
 function pickStartingPitcher(team, mainPlayerForPitch) {

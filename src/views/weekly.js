@@ -157,6 +157,14 @@ function buildFinalAnnounce(dialog, final, rerender) {
     bat: onOff(ch.bat),
     pit: onOff(ch.pitch),
   });
+  // 메인 포지션 한 줄 추가 (Phase 2 Stage 2/3).
+  if (state.player.position) {
+    const posLine = document.createElement("div");
+    posLine.className = "muted small";
+    posLine.style.cssText = "margin-top:4px; font-size:11px;";
+    posLine.textContent = t("position." + state.player.position);
+    lineup.appendChild(posLine);
+  }
   dialog.appendChild(lineup);
 
   const btn = document.createElement("button");
