@@ -2847,12 +2847,73 @@ function openMLBOfferModal(offers, onChoose) {
 }
 
 // 포스트시즌 모달 — 시즌 종료 시 pro1/mlb 진출 자격이 있으면 발동.
+// skipFinalsModal ON 시 — 시리즈/라운드 전부 자동 시뮬 + 보상 적용. 토스트만 알림.
+function autoRunPostseason(ps) {
+  const player = state.player;
+  const league = state.league;
+  let safety = 50;  // 무한 루프 가드
+  while (ps && safety-- > 0) {
+    // 한 게임 시뮬레이션
+    const result = simulatePostseasonGame(player, league, ps.opponent, ps.stage);
+    if (result?.mainPlayer && (result.mainPlayer.roles?.bat || result.mainPlayer.roles?.pitch)) {
+      mergeSeasonStats(player, result.mainPlayer);
+      applyGameExperience(player, result.mainPlayer);
+      player.seasonStats.games = (player.seasonStats.games ?? 0) + 1;
+    }
+    const myEntry = result.home.team.isPlayerTeam ? result.home : result.away;
+    const oppEntry = myEntry === result.home ? result.away : result.home;
+    const won = result.winner === myEntry.team.name;
+    recordSeriesGame(ps, won, myEntry.score, oppEntry.score);
+
+    if (isSeriesClinched(ps)) {
+      const winner = seriesWinner(ps);
+      const myWonSeries = winner === "my";
+      const isFinalRound = (ps.round === "ks" || ps.round === "ws");
+      applyRoundReward(player, ps.round, myWonSeries);
+      ps.completedRounds = ps.completedRounds ?? [];
+      ps.completedRounds.push({
+        round: ps.round,
+        won: myWonSeries,
+        scoreMy: ps.seriesWins.my, scoreOpp: ps.seriesWins.opp,
+        seriesWins: { ...ps.seriesWins },
+      });
+
+      // 토스트 — 라운드 결과
+      const label = t("postseason.title." + ps.round);
+      const resultLabel = myWonSeries
+        ? t("postseason.winLabel")
+        : t("postseason.loseLabel");
+      pushToast(`${label} ${resultLabel} ${ps.seriesWins.my}-${ps.seriesWins.opp}`, myWonSeries ? "good" : "bad");
+
+      // 시리즈 종료 — 다음 라운드 또는 포스트시즌 종료
+      if (myWonSeries && !isFinalRound) {
+        advanceToNextRound(ps);
+        continue;
+      }
+      // 포스트시즌 종료
+      pushPostseasonRecord(player, ps.stage, ps.round, myWonSeries && isFinalRound);
+      return;
+    }
+    // 시리즈 진행중 — 다음 게임 루프
+  }
+}
+
 // announce → result 반복 (라운드별). 우승 시 다음 라운드, 패배 시 종료.
 let _postseasonModalShown = false;
 function showPostseasonModalIfNeeded(route) {
   const ps = state.pendingPostseason;
   if (!ps || _postseasonModalShown) return;
   _postseasonModalShown = true;
+
+  // skipFinalsModal ON → 모든 시리즈/라운드 자동 시뮬 + 보상 적용 후 모달 없이 종료.
+  if (state.settings?.skipFinalsModal) {
+    autoRunPostseason(ps);
+    state.pendingPostseason = null;
+    _postseasonModalShown = false;
+    saveGame();
+    route("weekly");
+    return;
+  }
 
   state.paused = true;
   saveGame();
