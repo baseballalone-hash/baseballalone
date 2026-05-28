@@ -150,6 +150,34 @@ export const SEASON_EVENTS = [
   },
 ];
 
+// 시즌 종료 직후 (휴식기 진입 전) 호출 — 시뮬 캘린더가 9월 초에 끝나서 시즌 중에 발화 못한
+// 비시즌 국제대회 (9월 아시안게임 / 11월 프리미어12) 를 별도로 큐에 적재.
+// processedEvents 가드로 시즌 중 이미 트리거된 경우는 중복 적재 안 됨.
+export function checkOffseasonEvents(player, year) {
+  if (!player || !isProStage(player.stage)) return;
+  player.processedEvents = player.processedEvents ?? {};
+  if (!state.pendingEvents) state.pendingEvents = [];
+
+  // 아시안게임 — KBO 1군 + year %4==2 + fame 50+. seasonEvents 의 시즌 중 trigger 조건과 일관.
+  const agKey = `${year}-asian_games`;
+  if (!player.processedEvents[agKey]
+      && year % 4 === 2
+      && player.stage === "pro1"
+      && (player.fame ?? 0) >= 50) {
+    player.processedEvents[agKey] = true;
+    state.pendingEvents.push({ key: "asian_games", type: "modal", handlerKey: "intlTournamentLive", year });
+  }
+
+  // 프리미어12 — pro1/mlb + year %4==3 + fame 50+. 시즌 캘린더가 11월 도달 안 해서 항상 여기서만 발화.
+  const p12Key = `${year}-premier12`;
+  if (!player.processedEvents[p12Key]
+      && year % 4 === 3
+      && (player.fame ?? 0) >= 50) {
+    player.processedEvents[p12Key] = true;
+    state.pendingEvents.push({ key: "premier12", type: "modal", handlerKey: "intlTournamentLive", year });
+  }
+}
+
 // 매 endWeek 후 호출 — 발동 조건 만족하는 이벤트를 처리.
 // 같은 이벤트는 같은 연도에 한 번만 발동.
 export function checkScheduledEvents(player, gameDate) {

@@ -11,7 +11,7 @@ import { getPlayerTeam, standings } from "./league.js";
 import { t } from "../i18n/index.js";
 import { checkFinalAdvance } from "./finals.js";
 import { evaluateAndApplySeasonAwards } from "./awards.js";
-import { checkScheduledEvents } from "./seasonEvents.js";
+import { checkScheduledEvents, checkOffseasonEvents } from "./seasonEvents.js";
 import { detectMilestones } from "./milestones.js";
 import { checkPostseasonAdvance } from "./postseason.js";
 
@@ -169,6 +169,8 @@ export function endWeek() {
       const ps = checkPostseasonAdvance(player, league);
       if (ps) state.pendingPostseason = ps;
     }
+    // 비시즌 국제대회 체크 — 9월 AG / 11월 P12 가 시뮬 캘린더 한계로 시즌 중에 발화 못함.
+    checkOffseasonEvents(player, state.gameDate?.year);
   }
   return { ok: true, results };
 }
