@@ -663,6 +663,15 @@ export const ko = {
     lefty_rb: "좌투우타",
   },
 
+  // 구종 (Phase 2 — pitches.js)
+  pitch: {
+    fastball: "직구",
+    slider:   "슬라이더",
+    curve:    "커브",
+    changeup: "체인지업",
+    splitter: "포크",
+  },
+
   face: {
     f1: "스포츠컷",
     f2: "헬멧",

@@ -6,6 +6,7 @@ import { getTeamById } from "./league.js";
 import { npcOverall } from "./npc.js";
 import { getEffectiveBatter, getEffectivePitcher, BATTER_STATS, PITCHER_STATS, emptyStats, MAIN_INJURY_LUCK } from "./player.js";
 import { effectMultiplier, effectAdd } from "./traitEffects.js";
+import { pickPitch, handMatchupPenalty } from "./pitches.js";
 
 // HBP 부상 — 실제 야구에서 사구로 부상 가는 비율은 매우 낮음(<<1% per HBP).
 // 게임은 박진감을 위해 5% 베이스, 단 주인공은 MAIN_INJURY_LUCK(0.4x) 적용해 실효 2%.
@@ -71,11 +72,12 @@ function getStageRule(stage) {
 // opts.walkoffMult / opts.walkoffAddPct: 9회+ home bottom + 메인 batter 시 inPlayHitChance 부스트.
 //   - walkoffMult: 곱연산 (clutch trait ×2)
 //   - walkoffAddPct: %p 가산 (lucky_bat relic +5%p)
+// opts.handPenalty: 좌/우 매치업 contactDiff 패널티 (같은 손 -3, 그 외 0). 호출자에서 계산.
 function simulateAtBat(batter, pitcher, opts = {}) {
-  const { walkoffMult = 1, walkoffAddPct = 0 } = opts;
+  const { walkoffMult = 1, walkoffAddPct = 0, handPenalty = 0 } = opts;
   const b = batter;
   const p = pitcher;
-  const contact = b.contact ?? 50;
+  const contact = (b.contact ?? 50) + handPenalty;  // 같은 손이면 contact 살짝 감쇄
   const power   = b.power ?? 50;
   const eye     = b.eye ?? 50;
   const velocity = p.velocity ?? 50;
@@ -616,8 +618,11 @@ function playHalfInning(battingLineup, mound, myBox, myPbox, events, nextBatter,
     if (mainPlayer && mainTeamSide && defSide === mainTeamSide) {
       errorMult = effectMultiplier(mainPlayer, "errorChance");
     }
+    // Phase 2: 좌/우 매치업 페널티 + 구종 선택.
+    const handPenalty = handMatchupPenalty(batter.bats, pitcher.throws);
+    const pitchType = pickPitch(pitcher);
 
-    const raw = simulateAtBat(bStats, pStats, { walkoffMult, walkoffAddPct });
+    const raw = simulateAtBat(bStats, pStats, { walkoffMult, walkoffAddPct, handPenalty });
     const resolvedType = raw.type === "OUT"
       ? classifyOut(bStats, bases, outs, defenseRating, { errorMult })
       : raw.type;
@@ -675,7 +680,7 @@ function playHalfInning(battingLineup, mound, myBox, myPbox, events, nextBatter,
         else myBox.tb += 1;
       }
       myBox.rbi = (myBox.rbi ?? 0) + (ab.rbi ?? 0);
-      events.push({ inning, type: resolvedType, role: "batter", runsScored: ab.runs });
+      events.push({ inning, type: resolvedType, role: "batter", runsScored: ab.runs, pitchType });
     }
     // R 추적 — 베이스 isMain 주자 + HR 시 본인.
     if (ab.scoredRunners) {
@@ -695,7 +700,7 @@ function playHalfInning(battingLineup, mound, myBox, myPbox, events, nextBatter,
       // 자책점: 실책 출루는 비자책.
       const earned = resolvedType === "E" ? 0 : ab.runs;
       myPbox.er = (myPbox.er ?? 0) + earned;
-      events.push({ inning, type: resolvedType, role: "pitcher", runsScored: ab.runs });
+      events.push({ inning, type: resolvedType, role: "pitcher", runsScored: ab.runs, pitchType });
     }
 
     // PA 직후 위기 강판 굴림 — 같은 이닝 안에 NPC 들어와서 다음 타자부터 던지게.

@@ -8,6 +8,7 @@ import { pushLog, pushToast, state } from "../state.js";
 import { t } from "../i18n/index.js";
 import { capBonusForStage, STARTING_STAT_PRESETS, TRAITS as REGRESSION_TRAITS, RELICS as REGRESSION_RELICS } from "../data/shopCatalog.js";
 import { effectMultiplier, effectAdd, hasTraitFlag } from "./traitEffects.js";
+import { assignPitches, decodeMainHand } from "./pitches.js";
 import { unlockItem } from "./regression.js";
 
 // severe 부상 회복 시 회귀 도전과제 해금 (severe_recovered).
@@ -100,12 +101,16 @@ export function createPlayer({
   }
   const traitList = Array.isArray(traits) ? [...traits] : [];
   const relicList = Array.isArray(relics) ? [...relics] : [];
+  // hand → throws/bats 디코딩 (Phase 2 좌/우 매치업용).
+  const { throws: throws_, bats } = decodeMainHand(hand);
 
   return {
     name,
     talent: talentList[0],
     talents: talentList,
     hand,
+    throws: throws_,
+    bats,
     faceId,
     age: 16,
     grade: 1,
@@ -113,6 +118,7 @@ export function createPlayer({
     teamName: null,
     batter,
     pitcher,
+    pitches: assignPitches(pitcher),    // 메인 투수 stat 기반 구종 풀
     stamina: 100,
     maxStamina: 100,
     condition: 50,

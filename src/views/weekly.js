@@ -407,7 +407,11 @@ function playLiveGame(dialog, result, opts) {
       const roleColor = ev.role === "batter" ? "var(--accent)" : "var(--accent-2)";
       const roleLbl = ev.role === "batter" ? t("weekly.batLabel") : t("weekly.pitLabel");
       const runSuffix = (ev.runsScored ?? 0) > 0 ? ` <span style="color:var(--good); font-weight:700">+${ev.runsScored}</span>` : "";
-      row.innerHTML = `<span style="color:${roleColor}; font-weight:700">[${ev.inning}] ${roleLbl}</span> ${t("event." + ev.type)}${runSuffix}`;
+      // 구종 표시 (Phase 2) — 타석/투구 결과에 어떤 구종이 사용됐는지.
+      const pitchSuffix = ev.pitchType
+        ? ` <span class="muted small" style="opacity:0.7">[${t("pitch." + ev.pitchType)}]</span>`
+        : "";
+      row.innerHTML = `<span style="color:${roleColor}; font-weight:700">[${ev.inning}] ${roleLbl}</span> ${t("event." + ev.type)}${pitchSuffix}${runSuffix}`;
     }
     logBox.appendChild(row);
     logBox.scrollTop = logBox.scrollHeight;

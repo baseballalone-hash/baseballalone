@@ -3,6 +3,7 @@
 import { randomName } from "../data/names.js";
 import { BATTER_STATS, PITCHER_STATS, emptyStats } from "./player.js";
 import { getLocale } from "../i18n/index.js";
+import { assignPitches, rollNpcBats, rollNpcThrows } from "./pitches.js";
 
 const POSITIONS_BATTER = ["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
 // 포지션별 능력치 가중치 (생성 시)
@@ -69,6 +70,7 @@ function createBatter(strength, ageRange = [19, 35], cap = 150) {
     role: "batter",
     pos,
     age: rndInt(ageRange[0], ageRange[1]),
+    bats: rollNpcBats(),                 // "L" | "R" | "S"
     batter,
     pitcher: null,
     seasonStats: emptyStats(),
@@ -89,11 +91,13 @@ function createPitcher(strength, ageRange = [19, 35], cap = 150) {
     role: "pitcher",
     pos: role, // "SP" | "RP"
     age: rndInt(ageRange[0], ageRange[1]),
+    throws: rollNpcThrows(),             // "L" | "R"
     batter: null,
     pitcher,
+    pitches: assignPitches(pitcher),     // { available, primary }
     seasonStats: emptyStats(),
     injury: null,
-    gamesSinceLastPitch: 99, // SP/RP 모두 게임에서 사용되면 0으로 reset. week.js endWeek 후 ++.
+    gamesSinceLastPitch: 99,
   };
 }
 

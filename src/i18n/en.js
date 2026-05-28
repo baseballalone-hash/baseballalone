@@ -659,6 +659,15 @@ export const en = {
     lefty_rb: "L / R",
   },
 
+  // Pitch types (Phase 2 — pitches.js)
+  pitch: {
+    fastball: "FB",
+    slider:   "SL",
+    curve:    "CB",
+    changeup: "CH",
+    splitter: "SP",
+  },
+
   face: {
     f1: "Buzz cut",
     f2: "Helmet",
