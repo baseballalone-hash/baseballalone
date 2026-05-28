@@ -4,8 +4,9 @@
 //
 // i18n: 라벨/메시지는 모두 i18n 키로만 보유. 사람이 읽는 텍스트는 t() 호출로 UI에서 조회.
 
-import { pushLog } from "../state.js";
+import { pushLog, state } from "../state.js";
 import { t } from "../i18n/index.js";
+import { capBonusForStage, STARTING_STAT_PRESETS } from "../data/shopCatalog.js";
 
 export const BATTER_STATS = ["contact", "power", "eye", "speed", "defense"];
 export const PITCHER_STATS = ["velocity", "control", "breaking", "stamina", "mental"];
@@ -41,25 +42,55 @@ export const TRAININGS = {
   mental:         { stats: ["mental", "control"],    stamina: -8,  injuryRisk: 0.002 },
 };
 
-export function createPlayer({ name, talent, hand = "right", faceId = "f1" }) {
+// createPlayer: 다중 재능 + 회귀 로드아웃 지원.
+//   talents: 배열 (없으면 [talent]). 모든 재능의 boost 가 시작값 가산 + 합산 boost 로 훈련 효율 적용.
+//   startingStat: 회귀 상점 시작 능력치 프리셋 키 — STARTING_STAT_PRESETS lookup, batter/pitcher 가산.
+//   traits / relics: 회귀 로드아웃 — player 에 attach (효과 wiring 은 P4).
+// 호환: 옛 호출 `createPlayer({ name, talent, hand, faceId })` 그대로 동작.
+export function createPlayer({
+  name, talent, hand = "right", faceId = "f1",
+  talents,
+  startingStat = null,
+  traits = [],
+  relics = [],
+}) {
+  const talentList = Array.isArray(talents) && talents.length > 0 ? [...talents] : [talent];
   // 시작 스탯: 평균(50) 살짝 위 — 16세 유망주가 동급 또래보다 약간 두각. 회귀 시스템으로 더 높은 값에서 시작하는 안도 지원.
   const baseBatter = { contact: 50, power: 44, eye: 50, speed: 52, defense: 50 };
   const basePitcher = { velocity: 50, control: 46, breaking: 42, stamina: 52, mental: 50 };
-  // 재능에 따라 시작값 살짝 보정
-  const boosts = TALENTS[talent].boost;
   const batter = { ...baseBatter };
   const pitcher = { ...basePitcher };
+  // 재능들의 boost 합산 — 동일 stat 에 다중 적용 시 곱연산.
+  const boostsCombined = {};
+  for (const tKey of talentList) {
+    const b = TALENTS[tKey]?.boost ?? {};
+    for (const [stat, m] of Object.entries(b)) {
+      boostsCombined[stat] = (boostsCombined[stat] ?? 1) * m;
+    }
+  }
+  // 시작값 보정 — boost 1배 초과 stat 만 +8%
   for (const stat of BATTER_STATS) {
-    if (boosts[stat]) batter[stat] = Math.round(batter[stat] * 1.08);
+    if ((boostsCombined[stat] ?? 1) > 1) batter[stat] = Math.round(batter[stat] * 1.08);
     batter[stat] += rndInt(-4, 4);
   }
   for (const stat of PITCHER_STATS) {
-    if (boosts[stat]) pitcher[stat] = Math.round(pitcher[stat] * 1.08);
+    if ((boostsCombined[stat] ?? 1) > 1) pitcher[stat] = Math.round(pitcher[stat] * 1.08);
     pitcher[stat] += rndInt(-4, 4);
+  }
+  // 회귀 상점 시작 능력치 가산
+  const preset = startingStat ? STARTING_STAT_PRESETS[startingStat] : null;
+  if (preset) {
+    for (const [stat, v] of Object.entries(preset.addBatter ?? {})) {
+      if (batter[stat] !== undefined) batter[stat] += v;
+    }
+    for (const [stat, v] of Object.entries(preset.addPitcher ?? {})) {
+      if (pitcher[stat] !== undefined) pitcher[stat] += v;
+    }
   }
   return {
     name,
-    talent,
+    talent: talentList[0],   // 호환용: 옛 코드의 player.talent (단일) 참조 유지.
+    talents: talentList,     // 신규: 다중 재능 — combinedTalentBoost / applyTraining 이 참조.
     hand,
     faceId,
     age: 16,
@@ -70,18 +101,38 @@ export function createPlayer({ name, talent, hand = "right", faceId = "f1" }) {
     pitcher,
     stamina: 100,
     maxStamina: 100,
-    condition: 50,           // 0~100, 50 평균
-    conditionTrend: 0,       // 호조/슬럼프 잔여 주
-    injury: null,            // {type, weeksLeft, severity}
-    gamesSinceLastPitch: 99, // 투수 등판 휴식 카운터
+    condition: 50,
+    conditionTrend: 0,
+    injury: null,
+    gamesSinceLastPitch: 99,
     fame: 0,
     money: 0,
-    contract: null,           // { yearsLeft } — 프로 진입 시 설정. 0 도달 시 FA.
+    contract: null,
     careerHistory: [],
     seasonStats: emptyStats(),
     careerStats: emptyStats(),
-    awards: [],   // {year, grade, stage, key}
+    awards: [],
+    // 회귀 로드아웃 — 효과 wiring 은 P4. 일단 attach 만.
+    startingStat: startingStat ?? null,
+    traits: Array.isArray(traits) ? [...traits] : [],
+    relics: Array.isArray(relics) ? [...relics] : [],
   };
+}
+
+// 다중 재능 boost 합산 (곱연산). 옛 코드의 TALENTS[player.talent].boost 를 대체.
+export function combinedTalentBoost(player) {
+  const out = {};
+  const list = Array.isArray(player?.talents) && player.talents.length > 0
+    ? player.talents
+    : [player?.talent].filter(Boolean);
+  for (const tKey of list) {
+    const b = TALENTS[tKey]?.boost;
+    if (!b) continue;
+    for (const [stat, m] of Object.entries(b)) {
+      out[stat] = (out[stat] ?? 1) * m;
+    }
+  }
+  return out;
 }
 
 export function emptyStats() {
@@ -126,7 +177,10 @@ const PLAYER_STAT_CAP_BY_STAGE = {
   mlb:     300,
 };
 export function getPlayerStatCap(player) {
-  return PLAYER_STAT_CAP_BY_STAGE[player?.stage] ?? 150;
+  const base = PLAYER_STAT_CAP_BY_STAGE[player?.stage] ?? 150;
+  // 회귀 영구 cap 보너스 — state.regression.permanentPurchases.capBoosts 에서 stage 별 누적 보너스 합산.
+  const bonus = capBonusForStage(player?.stage, state?.regression?.permanentPurchases?.capBoosts);
+  return base + bonus;
 }
 // 호환용 (옛 코드/세이브) — 의미는 "기본 cap"
 export const STAT_CAP = 150;
@@ -143,7 +197,7 @@ export function applyTraining(player, trainingKey) {
   const tr = TRAININGS[trainingKey];
   if (!tr) return { ok: false, reason: "noTraining" };
   const mult = ageMultiplier(player.age);
-  const talentBoost = TALENTS[player.talent].boost;
+  const talentBoost = combinedTalentBoost(player);
   const critical = Math.random() < 0.10;
   const critMult = critical ? 2.0 : 1.0;
   const gained = {};

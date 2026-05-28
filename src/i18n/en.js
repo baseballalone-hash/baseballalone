@@ -735,6 +735,7 @@ export const en = {
     fieldHand: "Bat / Throw hand",
     fieldTalent: "Talent type (affects training)",
     fieldTalentDist: "Talent distribution (training multiplier)",
+    extraTalentHint: "Regression unlocked {n} talent slots — extra talent boosts stack multiplicatively.",
     namePlaceholder: "e.g. Mike Johnson",
     defaultName: "Rookie",
     previewMeta: "{talent} · Age 16 · Year 1",

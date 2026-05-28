@@ -204,6 +204,19 @@ export function resetLoadout() {
   saveRegressionMeta();
 }
 
+// 캐릭터 생성 직전 호출 — 현재 loadout snapshot 을 반환하고 즉시 reset.
+// 1회용 효과 (시작 능력치/특성/유물) 가 캐릭터당 1번만 적용되도록 보장.
+export function consumeLoadoutForCharacter() {
+  const m = ensureMeta();
+  const snapshot = {
+    startingStat: m.loadout.startingStat,
+    traits: [...m.loadout.traits],
+    relics: [...m.loadout.relics],
+  };
+  resetLoadout();
+  return snapshot;
+}
+
 // 디버그/probe 용 — 전체 메타 초기화.
 export function resetRegressionMeta() {
   state.regression = defaultRegressionMeta();

@@ -28,9 +28,10 @@ const {
   addBalance, spendBalance, recordRun,
   purchasePermanent, unlockItem,
   setStartingStat, setTraits, setRelics, resetLoadout,
-  resetRegressionMeta,
+  consumeLoadoutForCharacter, resetRegressionMeta,
 } = await import("./src/systems/regression.js");
 const { capBonusForStage } = await import("./src/data/shopCatalog.js");
+const { createPlayer, combinedTalentBoost, getPlayerStatCap } = await import("./src/systems/player.js");
 
 function section(t) {
   console.log("\n" + "=".repeat(60));
@@ -191,5 +192,83 @@ ok(capBonusForStage("mlb", state.regression.permanentPurchases.capBoosts) === 0,
 // kbo tier 4 (없음)
 const cMax = purchasePermanent("capBoost", { group: "kbo" });
 ok(!cMax.ok && cMax.reason === "max_tier", "kbo group tier 4 → max_tier");
+
+// ── 9. createPlayer + cap/talent boost wiring ──────────────────
+section("9. createPlayer 회귀 효과 적용 (P3)");
+resetRegressionMeta();
+
+// 9.1 기본 (회귀 효과 없음)
+const baseline = createPlayer({ name: "baseline", talent: "contact" });
+ok(baseline.talents?.length === 1 && baseline.talents[0] === "contact", `baseline talents=[${baseline.talents}]`);
+ok(baseline.startingStat === null, "baseline startingStat null");
+ok(baseline.traits.length === 0 && baseline.relics.length === 0, "baseline traits/relics 비어있음");
+
+// 9.2 capBoost 가 getPlayerStatCap 에 반영
+addBalance(99999);
+purchasePermanent("capBoost", { group: "amateur" });   // +10
+purchasePermanent("capBoost", { group: "amateur" });   // +20
+purchasePermanent("capBoost", { group: "amateur" });   // +30
+// total amateur +60. HS base 150 → 210
+const player = createPlayer({ name: "cap-test", talent: "contact" });
+const capHigh = getPlayerStatCap(player);
+ok(capHigh === 210, `getPlayerStatCap(stage=high) = ${capHigh} (expected 210 = 150+60)`);
+player.stage = "univ";
+ok(getPlayerStatCap(player) === 175 + 60, `univ cap = ${getPlayerStatCap(player)} (expected 235 = 175+60)`);
+player.stage = "pro1";
+ok(getPlayerStatCap(player) === 250, `pro1 cap = ${getPlayerStatCap(player)} (kbo 미구매 → 250)`);
+
+// 9.3 시작 능력치 프리셋 — battingFocus 가 batter 5종 각 +10
+resetRegressionMeta();
+const p2 = createPlayer({
+  name: "start-test",
+  talent: "contact",
+  startingStat: "battingFocus",
+});
+// 시작값 변동(rnd -4~+4) 흡수 위해 baseline 평균 vs preset 평균 비교
+const sumBaselineBatter = (createPlayer({ name: "b", talent: "contact" }).batter);
+const baseSum = sumBaselineBatter.contact + sumBaselineBatter.power + sumBaselineBatter.eye + sumBaselineBatter.speed + sumBaselineBatter.defense;
+const focusSum = p2.batter.contact + p2.batter.power + p2.batter.eye + p2.batter.speed + p2.batter.defense;
+// battingFocus 는 5종 각 +10 = +50. rndInt(-4,4) 노이즈 양쪽 ±20 가능 → diff > 20 면 합격.
+ok(focusSum - baseSum > 20, `battingFocus 시작값 합계 +${focusSum - baseSum} (>20 기대, 5종 +10 = +50)`);
+ok(p2.startingStat === "battingFocus", "p2.startingStat='battingFocus'");
+
+// 9.4 다중 talent + combinedTalentBoost
+const multi = createPlayer({
+  name: "multi",
+  talent: "contact",
+  talents: ["contact", "power"],
+});
+ok(multi.talents.length === 2, `multi.talents 2개 (${multi.talents})`);
+ok(multi.talent === "contact", `multi.talent='contact' (호환 필드)`);
+const boost = combinedTalentBoost(multi);
+// contact: 1.4 (contact) × 0.9 (power) = 1.26
+// power:   1.4 (power)
+// eye:     1.2 (contact)
+ok(Math.abs(boost.contact - 1.26) < 0.001, `boost.contact = ${boost.contact} (expected 1.26 = 1.4×0.9)`);
+ok(Math.abs(boost.power - 1.4) < 0.001, `boost.power = ${boost.power} (expected 1.4)`);
+ok(Math.abs(boost.eye - 1.2) < 0.001, `boost.eye = ${boost.eye} (expected 1.2)`);
+
+// 9.5 traits/relics attach
+const tr = createPlayer({
+  name: "tr",
+  talent: "contact",
+  traits: ["steel_mental", "learner"],
+  relics: ["lucky_bat"],
+});
+ok(tr.traits.length === 2 && tr.traits.includes("steel_mental"), `traits attach (${tr.traits})`);
+ok(tr.relics.length === 1 && tr.relics[0] === "lucky_bat", `relics attach (${tr.relics})`);
+
+// 9.6 consumeLoadoutForCharacter — snapshot + reset
+resetRegressionMeta();
+setStartingStat("balanced");
+setTraits(["steel_mental"]);
+setRelics(["lucky_bat"]);
+const snap = consumeLoadoutForCharacter();
+ok(snap.startingStat === "balanced", `snapshot.startingStat='balanced'`);
+ok(snap.traits.length === 1 && snap.traits[0] === "steel_mental", `snapshot.traits 캡처`);
+ok(snap.relics.length === 1 && snap.relics[0] === "lucky_bat", `snapshot.relics 캡처`);
+ok(state.regression.loadout.startingStat === null, "consume 후 loadout.startingStat 리셋");
+ok(state.regression.loadout.traits.length === 0, "consume 후 loadout.traits 리셋");
+ok(state.regression.loadout.relics.length === 0, "consume 후 loadout.relics 리셋");
 
 console.log("\n" + (process.exitCode ? "❌ 일부 실패" : "✅ 전체 통과"));

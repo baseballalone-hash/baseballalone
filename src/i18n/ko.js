@@ -739,6 +739,7 @@ export const ko = {
     fieldHand: "타격/투구 손 (자세 변경)",
     fieldTalent: "재능 타입 (훈련 효율에 영향)",
     fieldTalentDist: "재능 분포 (훈련 효율 배수)",
+    extraTalentHint: "회귀 상점으로 재능 슬롯 {n}개 활성 — 추가 재능의 boost 가 곱연산으로 합산된다.",
     namePlaceholder: "예: 심용기",
     defaultName: "주인공",
     previewMeta: "{talent} · 16세 · 고교 1학년",

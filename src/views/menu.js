@@ -6,6 +6,7 @@
 import { state, hasSave, loadGame, deleteSave, saveGame, resetState } from "../state.js";
 import { createPlayer, TALENTS } from "../systems/player.js";
 import { startHighSchoolCareer } from "../systems/career.js";
+import { consumeLoadoutForCharacter, loadRegressionMeta } from "../systems/regression.js";
 import { FACES, createFaceSVG } from "../render/avatars.js";
 import { createCharacterSVG } from "../render/character.js";
 import { createGameDate } from "../systems/tick.js";
@@ -13,12 +14,31 @@ import { t, getLocale } from "../i18n/index.js";
 import { resetWeeklyCarousel } from "./weekly.js";
 
 // 신규 게임 입력 상태 (라이브 갱신용)
+// talents: 회귀 talentSlots 확장 시 추가 슬롯 키 — 첫번째는 draft.talent, 그 외는 talents[1..N].
 const draft = {
   name: "",
   talent: "all_round",
+  talents: ["all_round"],
   hand: "right",
   faceId: "f1",
 };
+
+// 회귀 메타 기준 현재 총 재능 슬롯 수 (기본 1 + 영구 구매 N).
+function totalTalentSlots() {
+  if (!state.regression) loadRegressionMeta();
+  return 1 + (state.regression?.permanentPurchases?.talentSlots ?? 0);
+}
+
+// draft.talents 배열을 슬롯 수에 맞게 정규화 (부족 시 첫 항목 복제 / 초과 시 자르기).
+function syncDraftTalents() {
+  const n = totalTalentSlots();
+  const list = [...draft.talents];
+  // 첫번째는 draft.talent 와 항상 동기화
+  list[0] = draft.talent;
+  while (list.length < n) list.push(draft.talent);
+  list.length = n;
+  draft.talents = list;
+}
 
 // 이어하기 모달 — 한 번 닫으면 다시 안 뜸 (페이지 새로고침으로 리셋)
 let loadModalDismissed = false;
@@ -234,17 +254,26 @@ function renderCreatePanel(route) {
   // 시작 버튼 (가로 100%)
   const startBtn = button(t("menu.startBtn"), "primary", () => {
     const name = draft.name.trim() || t("menu.defaultName");
+    syncDraftTalents();
+    // 회귀 로드아웃 — 캐릭터당 1회용. 생성 직전 snapshot 뜨고 resetLoadout 실행.
+    const loadout = state.regression
+      ? consumeLoadoutForCharacter()
+      : { startingStat: null, traits: [], relics: [] };
     resetState();
     state.player = createPlayer({
       name,
       talent: draft.talent,
+      talents: draft.talents,
       hand: draft.hand,
       faceId: draft.faceId,
+      startingStat: loadout.startingStat,
+      traits: loadout.traits,
+      relics: loadout.relics,
     });
     startHighSchoolCareer(name, draft.talent, null);
     state.gameDate = createGameDate();
-    state.autoMode = "two_way";   // 기본 훈련 방향: 양방향 밸런스
-    state.paused = true;          // 사용자가 재생 누를 때까지 대기
+    state.autoMode = "two_way";
+    state.paused = true;
     resetWeeklyCarousel();
     saveGame();
     route("weekly");
@@ -394,23 +423,45 @@ function renderHandField() {
 }
 
 function renderTalentField() {
+  syncDraftTalents();
+  const slots = totalTalentSlots();
+
   const wrap = document.createElement("div");
   wrap.appendChild(label(t("menu.fieldTalent")));
+
+  // 1번째 select — 기존 draft.talent 와 연동
+  wrap.appendChild(makeTalentSelect(0));
+
+  // 회귀 상점으로 슬롯 확장된 경우 추가 select 표시 (2..N)
+  if (slots > 1) {
+    const hint = document.createElement("div");
+    hint.className = "muted small";
+    hint.style.cssText = "font-size:10.5px; margin:4px 0 2px;";
+    hint.textContent = t("menu.extraTalentHint", { n: slots });
+    wrap.appendChild(hint);
+    for (let i = 1; i < slots; i++) {
+      wrap.appendChild(makeTalentSelect(i));
+    }
+  }
+  return wrap;
+}
+
+function makeTalentSelect(slotIdx) {
   const select = document.createElement("select");
-  select.style.width = "100%";
+  select.style.cssText = "width:100%; margin-top:" + (slotIdx === 0 ? "0" : "4px") + ";";
   for (const [key, talent] of Object.entries(TALENTS)) {
     const opt = document.createElement("option");
     opt.value = key;
     opt.textContent = `${t("talent." + key)} — ${describeBoost(talent.boost)}`;
     select.appendChild(opt);
   }
-  select.value = draft.talent;
+  select.value = draft.talents[slotIdx] ?? draft.talent;
   select.addEventListener("change", e => {
-    draft.talent = e.target.value;
+    draft.talents[slotIdx] = e.target.value;
+    if (slotIdx === 0) draft.talent = e.target.value;
     refreshPreview();
   });
-  wrap.appendChild(select);
-  return wrap;
+  return select;
 }
 
 function describeBoost(boost) {
