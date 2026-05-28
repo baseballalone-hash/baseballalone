@@ -494,10 +494,13 @@ function playLiveGame(dialog, result, opts) {
         await waitMs(180);
       }
       swapField(createDiamondSVG());
-      // 이 half 의 마지막 메인 batter 결과로 다이아몬드 베이스 표시 (Phase 2 — 주자 위치).
+      // 이 half 의 마지막 메인 batter 결과로 다이아몬드 베이스 표시 + 탑뷰 타구 궤적 (Phase 2).
       const lastBat = [...evs].reverse().find(e => e.role === "batter");
       if (lastBat) {
+        animateBallTrajectory(diamondNode, lastBat.type);
         updateDiamondBases(diamondNode, basesAfterMainPA(lastBat.type));
+        // 궤적 + 베이스 표시를 잠시 보여줌 (다음 half 의 새 다이아몬드로 자동 리셋).
+        await waitMs(700);
       }
     } else {
       await waitMs(360);
@@ -541,6 +544,8 @@ function createDiamondSVG() {
   svg.setAttribute("width", "100");
   svg.setAttribute("height", "100");
   svg.setAttribute("viewBox", "0 0 100 100");
+  // overflow visible — HR 의 담장 너머 궤적이 잘리지 않도록.
+  svg.setAttribute("style", "overflow:visible;");
   svg.innerHTML = `
     <polygon points="50,12 88,50 50,88 12,50" fill="#1a2a3d" stroke="var(--accent)" stroke-width="1.5"/>
     <polygon points="50,38 62,50 50,62 38,50" fill="none" stroke="#2c4565" stroke-width="1"/>
@@ -548,6 +553,7 @@ function createDiamondSVG() {
     <circle data-base="2" cx="50" cy="12" r="4" fill="var(--accent-2)" />
     <circle data-base="3" cx="12" cy="50" r="4" fill="var(--accent-2)" />
     <circle cx="50" cy="88" r="4" fill="white" />
+    <circle data-ball cx="50" cy="88" r="2.4" fill="#ffe14a" stroke="#000" stroke-width="0.4" opacity="0" />
   `;
   return svg;
 }
@@ -575,6 +581,62 @@ function basesAfterMainPA(type) {
   if (type === "3B") return [false, false, true];
   // HR / OUT / K / DP / SF — 베이스 비움
   return [false, false, false];
+}
+
+// 결과 type 별 타구 궤적 — 다이아몬드 viewBox 100×100 기준. cubic bezier 4 점.
+// 좌/우 무작위 (lr ∈ {-1, 1}). 홈베이스(50,88) 에서 출발.
+function trajectoryForType(type) {
+  const home = [50, 88];
+  const lr = Math.random() < 0.5 ? -1 : 1;
+  const m = (dx, y) => [50 + dx * lr, y];
+  switch (type) {
+    case "1B":  return [home, m(18, 65), m(28, 50), m(35, 42)];   // 외야 얕은
+    case "2B":  return [home, m(25, 55), m(35, 35), m(42, 22)];   // 중간
+    case "3B":  return [home, m(28, 48), m(40, 22), m(46, 8)];    // 깊은
+    case "HR":  return [home, m(28, 40), m(50, 8),  m(62, -8)];   // 담장 너머
+    case "E":   return [home, m(10, 75), m(15, 65), m(20, 60)];   // 내야 짧음
+    case "DP":  return [home, m(12, 78), m(18, 72), m(22, 68)];
+    case "SF":  return [home, m(15, 55), m(20, 35), m(25, 25)];   // 얕은 외야 (희생타)
+    case "OUT": return [home, m(15, 70), m(20, 55), m(22, 50)];   // 평범 아웃
+    case "K":
+    case "BB":
+    case "HBP": return null;                                       // 타구 없음
+    default:    return null;
+  }
+}
+
+// 다이아몬드 위에서 결과 type 의 타구 궤적 애니메이션. ~700ms.
+function animateBallTrajectory(svg, type) {
+  if (!svg) return;
+  const ball = svg.querySelector("[data-ball]");
+  if (!ball) return;
+  const traj = trajectoryForType(type);
+  if (!traj) {
+    ball.setAttribute("opacity", "0");
+    return;
+  }
+  const [P0, P1, P2, P3] = traj;
+  ball.setAttribute("opacity", "1");
+  ball.setAttribute("cx", P0[0]);
+  ball.setAttribute("cy", P0[1]);
+
+  const duration = 700;
+  const t0 = performance.now();
+
+  function frame(now) {
+    const t = Math.min(1, (now - t0) / duration);
+    const u = 1 - t;
+    const x = u*u*u * P0[0] + 3*u*u*t * P1[0] + 3*u*t*t * P2[0] + t*t*t * P3[0];
+    const y = u*u*u * P0[1] + 3*u*u*t * P1[1] + 3*u*t*t * P2[1] + t*t*t * P3[1];
+    ball.setAttribute("cx", x.toFixed(2));
+    ball.setAttribute("cy", y.toFixed(2));
+    if (t < 1) requestAnimationFrame(frame);
+    else if (type === "HR") {
+      // 담장 너머 — 페이드아웃
+      ball.setAttribute("opacity", "0.4");
+    }
+  }
+  requestAnimationFrame(frame);
 }
 
 // 라인 스코어 테이블 — 정규 9칸 + 연장 칸 동적 추가 + R
