@@ -44,6 +44,7 @@ export const TALENTS = {
 
 // 훈련 카탈로그. 라벨은 i18n 의 training.<key>.
 export const TRAININGS = {
+  // (참고) 일자별 stat 증가량 글로벌 계수는 TRAIN_GAIN_COEFF 로 통제.
   batting:        { stats: ["contact", "power"],     stamina: -18, injuryRisk: 0.008 },
   eye_drill:      { stats: ["eye", "contact"],       stamina: -12, injuryRisk: 0.004 },
   running:        { stats: ["speed"],                stamina: -16, injuryRisk: 0.010 },
@@ -247,6 +248,15 @@ export function getPlayerStatCap(player) {
 // 호환용 (옛 코드/세이브) — 의미는 "기본 cap"
 export const STAT_CAP = 150;
 
+// 훈련 일자당 stat 증가 글로벌 계수.
+// 밸런스 의도: 첫 인생(회귀 보너스 0) HS 1학년 동안 한 종목만 파도 "될지말지" 경계 수준.
+//   - 단일 stat 종목(주루→speed) 1년: 최종 ~80대 초중반 (대주자 겨우 가능/불가 경계)
+//   - 2-stat 종목(타격 등): 각 stat ~70 수준 (선발/대회 기여 어려움)
+// 이전 0.8 은 1년 만에 speed 115+ 도달 → 너무 빠른 성장이라 하향.
+// 0.25 기준: 주루만 1년 → speed ~82 (대주자 임계 ~83 경계, 될지말지), 그 외 stat 은 ~50 유지 →
+// 단일종목 집중으로도 OVR ~55 라 HS 선발/대회 주전 진입 불가. 장기(22시즌) 피크는 cap 수렴이라 거의 유지.
+const TRAIN_GAIN_COEFF = 0.25;
+
 // 주인공 부상 면역 보정 — 훈련/HBP 부상 굴림에 곱해서 실효율 낮춤.
 // 예: HBP 베이스 5% → 메인 실효 2% (5% × 0.4).
 // 훈련은 prelim risk(0.002~0.012)이 매우 작으므로 0.4x 곱해도 체감 차이는 적음.
@@ -276,7 +286,7 @@ export function applyTraining(player, trainingKey) {
     : 1;
   const gained = {};
   for (const stat of tr.stats) {
-    const base = (0.5 + Math.random() * 0.9) * 0.8 * firstSeasonBoost;
+    const base = (0.5 + Math.random() * 0.9) * TRAIN_GAIN_COEFF * firstSeasonBoost;
     const boost = talentBoost[stat] ?? 1.0;
     const cap = getPlayerStatCap(player);
     const target = player.batter[stat] !== undefined ? player.batter : player.pitcher;
