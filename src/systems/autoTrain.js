@@ -1,51 +1,33 @@
 // 자동훈련 — 선수 타입 프리셋
-// 각 프리셋은 훈련 종목별 가중치를 가짐. 매 일자 가중치 랜덤 추첨.
-// 체력 부족/부상 시 자동으로 휴식으로 대체.
+//
+// 각 프리셋은 "스탯별 목표 비중"(0~1)을 가진다. 목표치 = 비중 × 해당 stat cap.
+// 트레이너는 매 일자, 목표 대비 가장 부족한 스탯을 키우는 훈련을 (부족분 비례로) 고른다.
+//   - 비중대로 빌드가 형성됨 (예: 슬러거는 파워가 가장 높고 투수 스탯은 안 키움)
+//   - 목표(비중×cap)에 닿으면 그 스탯은 더 키우지 않음 → 다른 스탯으로 전환
+//     (경기 경험으로 솟은 스탯도 목표 초과면 자동 제외 — 멘탈만 솟는 문제 방지)
+//   - 비중 0 = 그 스탯을 올리는 훈련은 안 함
+// 라벨/설명은 i18n 의 preset.<key>.{label,desc} 에서 조회. 여기엔 비중 데이터만.
 
 import { state } from "../state.js";
 import { doDailyAction } from "./week.js";
 import { TRAININGS, getPlayerStatCap } from "./player.js";
 import { effectMultiplier } from "./traitEffects.js";
 
-// focusStats: 가장 부족한 stat 타게팅 시 대상 stat 화이트리스트 (null=모든 stat)
-// 라벨/설명은 i18n 의 preset.<key>.{label,desc} 에서 조회. 여기엔 가중치 같은 데이터만.
+// 스탯 순서: 컨택 파워 선구 주력 수비 | 구속 제구 변화 스태 멘탈
+function W(contact, power, eye, speed, defense, velocity, control, breaking, stamina, mental) {
+  return { contact, power, eye, speed, defense, velocity, control, breaking, stamina, mental };
+}
+
 export const AUTO_PRESETS = {
-  slugger: {
-    weights: { batting: 4, weight: 3, eye_drill: 1, fielding: 0.5, running: 0.5 },
-    focusStats: ["contact", "power", "eye"],
-  },
-  contact: {
-    weights: { batting: 3, eye_drill: 3, running: 1, fielding: 1 },
-    focusStats: ["contact", "eye", "power"],
-  },
-  speedster: {
-    weights: { running: 3, batting: 2, fielding: 2, eye_drill: 1 },
-    focusStats: ["speed", "contact", "defense"],
-  },
-  defender: {
-    weights: { fielding: 4, running: 2, batting: 1, eye_drill: 1 },
-    focusStats: ["defense", "speed", "contact"],
-  },
-  fireballer: {
-    weights: { pitching: 4, weight: 2, mental: 1, breaking_drill: 0.5 },
-    focusStats: ["velocity", "stamina", "control"],
-  },
-  finesse: {
-    weights: { pitching: 2, breaking_drill: 3, mental: 3 },
-    focusStats: ["control", "breaking", "mental"],
-  },
-  two_way: {
-    weights: {
-      batting: 1.5, eye_drill: 1.5, fielding: 1.5, running: 1.5,
-      pitching: 1.5, breaking_drill: 1.5, mental: 1.5, weight: 1.5,
-    },
-    focusStats: null, // 모든 stat 균등
-  },
-  recovery: {
-    weights: { eye_drill: 1, mental: 1 },
-    restBias: 0.6,
-    focusStats: null,
-  },
+  //                  컨택  파워  선구  주력  수비  구속  제구  변화  스태  멘탈
+  slugger:    { statWeights: W(0.75, 1.00, 0.75, 0.55, 0.55, 0, 0, 0, 0, 0) },          // 거포 — 파워 최우선
+  contact:    { statWeights: W(1.00, 0.55, 0.90, 0.70, 0.65, 0, 0, 0, 0, 0) },          // 교타자 — 컨택/선구
+  speedster:  { statWeights: W(0.80, 0.65, 0.70, 1.00, 0.75, 0, 0, 0, 0, 0) },          // 호타준족 — 주력 중심 호타
+  defender:   { statWeights: W(0.60, 0.45, 0.60, 0.85, 1.00, 0, 0, 0, 0, 0) },          // 수비형 — 수비/주력
+  fireballer: { statWeights: W(0, 0, 0, 0, 0, 1.00, 0.65, 0.70, 0.85, 0.60) },          // 파워피처 — 구속/스태미나
+  finesse:    { statWeights: W(0, 0, 0, 0, 0, 0.60, 1.00, 0.90, 0.70, 0.85) },          // 기교파 — 제구/변화구/멘탈
+  two_way:    { statWeights: W(1, 1, 1, 1, 1, 1, 1, 1, 1, 1) },                          // 양방향 — 전 스탯 균등
+  recovery:   { statWeights: W(0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5), restBias: 0.6 }, // 회복 우선
 };
 
 function statValue(player, stat) {
@@ -54,135 +36,70 @@ function statValue(player, stat) {
   return null;
 }
 
-// 훈련 부족도 (0~1) — stage cap 기준 평균 잔여 비율.
-// cap=251, stat=199 → 잔여 = (251-199)/251 ≈ 0.207.
-// training 의 stats 가 여러 개면 평균 사용 — 한 stat 만 cap 도달하면 다른 stat 잔여만 반영.
-// 전부 cap 도달이면 0 → 가중치 추첨에서 자동 제외.
-function deficitFor(trainingKey, player) {
-  const tr = TRAININGS[trainingKey];
-  if (!tr) return 0;
-  let sum = 0;
-  let count = 0;
-  for (const s of tr.stats) {
-    const v = statValue(player, s);
-    if (v === null) continue;
-    const cap = getPlayerStatCap(player, s);
-    if (!isFinite(cap) || cap <= 0) continue;
-    sum += Math.max(0, (cap - v) / cap);
-    count++;
-  }
-  if (count === 0) return 0;
-  return sum / count;
-}
-
-// cap 에 거의 닿은 stat — findLowestStatTraining 에서 제외.
-function isStatNearCap(stat, player) {
+// 목표(비중×cap) 대비 부족분 (0~weight). 이미 목표 도달이면 0.
+function statDeficit(stat, player, weight) {
+  if (!weight || weight <= 0) return 0;
   const v = statValue(player, stat);
-  if (v === null) return true;
+  if (v == null) return 0;
   const cap = getPlayerStatCap(player, stat);
-  return v >= cap - 0.5;
+  if (!isFinite(cap) || cap <= 0) return 0;
+  const target = weight * cap;
+  if (v >= target) return 0;
+  return (target - v) / cap;
 }
 
-// 플레이어 평균 대비 이미 앞서가는 스탯인지 — 그러면 자동훈련에서 더 키우지 않음.
-// (예: 경기 경험으로 멘탈만 솟았을 때 멘탈 훈련을 더 고르지 않게 — 균형 잡힌 성장 유도.)
-const AHEAD_MARGIN = 5;
-function statIsAhead(stat, player) {
-  const v = statValue(player, stat);
-  if (v === null) return false;
-  const vals = [...Object.values(player.batter ?? {}), ...Object.values(player.pitcher ?? {})];
-  if (!vals.length) return false;
-  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-  return v >= mean + AHEAD_MARGIN;
-}
-
-// 자동훈련 후보에서 제외할 훈련 — 주 스탯(stats[0])이 cap 근처거나 평균보다 앞서면 스킵.
-function trainingSkipped(trKey, player) {
+// 한 종목이 올리는 스탯들의 (목표 대비) 부족분 합 = 점수.
+// 단, 이미 목표 달성했거나 비중 0 인 스탯을 또 올리는 종목은 "누수"로 감점 —
+// 예: 슬러거가 파워(목표 100) 때문에 웨이트(파워+스태미나)를 쓰면 스태미나(목표 0)가 딸려 오르는 것을
+//     억제하고, 대신 batting(파워+컨택) 처럼 원하는 스탯만 올리는 종목을 선호하게.
+const LEAK_PENALTY = 0.4;
+function trainingScore(trKey, preset, player) {
   const tr = TRAININGS[trKey];
-  if (!tr || !tr.stats.length) return true;
-  const lead = tr.stats[0];
-  return isStatNearCap(lead, player) || statIsAhead(lead, player);
-}
-
-// 프리셋의 focusStats(없으면 전 stat) 중 가장 낮은 stat 의 훈련 반환.
-// cap 도달 stat 은 제외 — "캡에 닿으면 다른 훈련" 보장.
-function findLowestStatTraining(presetKey, player) {
-  const preset = AUTO_PRESETS[presetKey];
-  if (!preset) return null;
-  const trainings = Object.keys(preset.weights);
-  const focus = preset.focusStats; // null이면 모든 stat 대상
-
-  const statToTrainings = {};
-  for (const trKey of trainings) {
-    const t = TRAININGS[trKey];
-    if (!t) continue;
-    if (trainingSkipped(trKey, player)) continue;  // 주 스탯이 앞선 훈련은 제외
-    for (const s of t.stats) {
-      if (statValue(player, s) === null) continue;
-      if (focus && !focus.includes(s)) continue;
-      if (isStatNearCap(s, player)) continue;  // cap 도달은 제외
-      if (!statToTrainings[s]) statToTrainings[s] = [];
-      statToTrainings[s].push(trKey);
+  if (!tr) return 0;
+  let s = 0;
+  for (const stat of tr.stats) {
+    const w = preset.statWeights[stat] ?? 0;
+    const def = statDeficit(stat, player, w);
+    if (def > 0) {
+      s += def;
+    } else {
+      // 목표 달성/비중0 스탯을 또 올림 → 남은 캡 여유에 비례해 감점.
+      const v = statValue(player, stat);
+      const cap = getPlayerStatCap(player, stat);
+      if (v != null && cap > 0) s -= LEAK_PENALTY * Math.max(0, (cap - v) / cap);
     }
   }
-  let lowestStat = null;
-  let lowestVal = 9999;
-  for (const s of Object.keys(statToTrainings)) {
-    const v = statValue(player, s);
-    if (v < lowestVal) { lowestVal = v; lowestStat = s; }
-  }
-  if (!lowestStat) return null;
-  const candidates = statToTrainings[lowestStat];
-  candidates.sort((a, b) => (preset.weights[b] ?? 0) - (preset.weights[a] ?? 0));
-  return candidates[0];
+  return Math.max(0, s);
 }
 
-// 다음 한 칸의 행동 결정
-//   1) 50% 확률로 focus 내 최저 stat 직접 타게팅 (cap 도달 stat 자동 제외)
-//   2) 나머지 50%는 deficit 곱셈 가중치 추첨 — cap 도달 training 은 weight 0
-// mentor_letter 유물의 autoTrainDeficitBoost 는 deficit 자체에 곱셈 (효과 증폭).
-const TARGET_LOWEST_PROB = 0.5;
-
+// 다음 한 칸의 행동 결정 — 목표 비중 대비 부족분에 비례한 가중 추첨.
+// 모든 목표 도달(또는 비중 0뿐) 이면 휴식. mentor_letter 는 부족분을 곱으로 강조.
 export function pickAutoAction(presetKey, player) {
   if (player.injury) return { action: "rest" };
   if (player.stamina < 25) return { action: "rest" };
   const preset = AUTO_PRESETS[presetKey];
   if (!preset) return { action: "rest" };
 
-  // restBias 처리
-  if (preset.restBias && Math.random() < preset.restBias) {
-    return { action: "rest" };
-  }
-  // 체력 50 미만일 때 추가 휴식 확률
-  if (player.stamina < 50 && Math.random() < 0.2) {
-    return { action: "rest" };
-  }
+  // restBias (회복 우선) — 일정 확률로 휴식
+  if (preset.restBias && Math.random() < preset.restBias) return { action: "rest" };
+  // 체력 50 미만이면 추가 휴식 확률
+  if (player.stamina < 50 && Math.random() < 0.2) return { action: "rest" };
 
-  // 1) 가장 부족한 stat 타게팅 (cap 도달 stat 제외)
-  if (Math.random() < TARGET_LOWEST_PROB) {
-    const target = findLowestStatTraining(presetKey, player);
-    if (target) return { action: "train", detail: target };
-  }
-
-  // 2) deficit 곱셈 가중치 추첨. cap 도달이면 weight 0 → 절대 안 뽑힘.
-  // mentor_letter: deficit 자체에 곱하면 부족도가 더 강조됨 (기존 가산 → 곱셈으로 단순화).
-  const boost = effectMultiplier(player, "autoTrainDeficitBoost");
-  const entries = Object.entries(preset.weights);
-  const adjusted = entries.map(([k, w]) => {
-    if (trainingSkipped(k, player)) return [k, 0];  // 주 스탯이 앞선 훈련은 가중치 0
-    const d = deficitFor(k, player) * boost;
-    return [k, w * d];
-  });
-  const total = adjusted.reduce((a, [, w]) => a + w, 0);
-  // 모든 training 의 stat 이 cap 도달 — 더 훈련할 게 없음. 휴식.
+  const boost = effectMultiplier(player, "autoTrainDeficitBoost");  // mentor_letter
+  const scored = Object.keys(TRAININGS).map(k => [k, trainingScore(k, preset, player) * boost]);
+  const total = scored.reduce((a, [, w]) => a + w, 0);
+  // 모든 목표 달성 — 더 키울 게 없음. 휴식.
   if (total <= 0.001) return { action: "rest" };
+
+  // 부족분 비례 가중 추첨 → 목표 비중대로 자연 분배
   let r = Math.random() * total;
-  for (const [k, w] of adjusted) {
+  for (const [k, w] of scored) {
     r -= w;
     if (r <= 0) return { action: "train", detail: k };
   }
-  // 폴백 — 가중치 가장 높은 것
-  let best = adjusted[0];
-  for (const e of adjusted) if (e[1] > best[1]) best = e;
+  // 폴백 — 점수 최고
+  let best = scored[0];
+  for (const e of scored) if (e[1] > best[1]) best = e;
   return { action: "train", detail: best[0] };
 }
 
