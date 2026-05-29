@@ -7,6 +7,7 @@
 import { state } from "../state.js";
 import { t, toggleLocale, localeToggleLabel } from "../i18n/index.js";
 import { setSetting, getSetting } from "../systems/settings.js";
+import { applyAudioSettings, sfx } from "../assets/audio.js";
 
 const SPEEDS = [
   { label: "0.5x", ms: 1000 },
@@ -118,6 +119,60 @@ export function openSettingsModal(route) {
   finalsRow.appendChild(finalsBtn);
   finalsSection.appendChild(finalsRow);
   dialog.appendChild(finalsSection);
+
+  // 2.5) 사운드 — 음소거 토글 + 효과음/BGM 볼륨
+  const audioSection = document.createElement("section");
+  audioSection.style.marginBottom = "16px";
+
+  const audioRow = document.createElement("div");
+  audioRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;";
+  const audioLabel = document.createElement("div");
+  audioLabel.style.cssText = "font-weight:700; font-size:13px;";
+  audioLabel.textContent = t("settingsModal.soundTitle");
+  audioRow.appendChild(audioLabel);
+
+  const muteBtn = document.createElement("button");
+  muteBtn.type = "button";
+  const syncMute = () => {
+    const m = !!getSetting("muted");
+    muteBtn.textContent = m ? t("settingsModal.soundMuted") : t("settingsModal.soundOn");
+    muteBtn.className = m ? "" : "primary";
+  };
+  muteBtn.style.cssText = "padding:8px 14px; font-size:12px; font-weight:700; flex-shrink:0;";
+  syncMute();
+  muteBtn.addEventListener("click", () => {
+    setSetting("muted", !getSetting("muted"));
+    syncMute();
+    applyAudioSettings();
+    if (!getSetting("muted")) sfx("click");
+  });
+  audioRow.appendChild(muteBtn);
+  audioSection.appendChild(audioRow);
+
+  // 볼륨 슬라이더 (BGM / 효과음)
+  const mkVol = (key, labelKey, onChange) => {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:6px;";
+    const lab = document.createElement("span");
+    lab.className = "muted small";
+    lab.style.cssText = "font-size:11px; width:64px; flex-shrink:0;";
+    lab.textContent = t(labelKey);
+    const rng = document.createElement("input");
+    rng.type = "range"; rng.min = "0"; rng.max = "100"; rng.step = "5";
+    rng.value = String(Math.round((getSetting(key) ?? 0.5) * 100));
+    rng.style.cssText = "flex:1; min-width:0;";
+    rng.addEventListener("input", () => {
+      setSetting(key, Number(rng.value) / 100);
+      onChange?.();
+    });
+    wrap.appendChild(lab);
+    wrap.appendChild(rng);
+    return wrap;
+  };
+  audioSection.appendChild(mkVol("bgmVolume", "settingsModal.soundBgm", () => applyAudioSettings()));
+  audioSection.appendChild(mkVol("sfxVolume", "settingsModal.soundSfx", () => sfx("click")));
+
+  dialog.appendChild(audioSection);
 
   // 2) 언어 토글
   const langSection = document.createElement("section");

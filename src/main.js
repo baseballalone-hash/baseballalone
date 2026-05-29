@@ -16,6 +16,11 @@ import {
   t, loadLocaleFromStorage,
 } from "./i18n/index.js";
 import { openSettingsModal } from "./views/settingsModal.js";
+import { initAudioUnlock, playBgm } from "./assets/audio.js";
+import { preloadImages } from "./assets/images.js";
+
+// 뷰별 BGM 매핑 — 시작/메뉴/상점은 menu 곡, 경기는 game 곡.
+const VIEW_BGM = { start: "menu", menu: "menu", shop: "menu", weekly: "game" };
 
 const VIEWS = {
   start: renderStart,
@@ -100,6 +105,8 @@ export function route(name, opts = {}) {
   // 뷰가 실제로 바뀌었을 때만 상단으로 리셋.
   const isViewChange = state.view !== name;
   state.view = name;
+  // 뷰 전환 시 BGM 곡 교체 (같은 곡이면 audio.js 가 무시).
+  if (isViewChange && VIEW_BGM[name]) playBgm(VIEW_BGM[name]);
   const fn = VIEWS[name] ?? VIEWS.menu;
   const root = getRoot();
   fn(root, route, opts);
@@ -209,6 +216,8 @@ function init() {
   wireSettingsButton();
   wirePauseButton();
   setupScrollTopButton();
+  initAudioUnlock();   // 첫 사용자 제스처에 오디오 unlock
+  preloadImages();     // preload=true 이미지 미리 받기 (없으면 조용히 실패)
   route("start");
   scheduleTick();
 }

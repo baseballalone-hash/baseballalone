@@ -467,6 +467,11 @@ export const en = {
     finalsModalDesc:   "Live visualization for finals / PO / All-Star / Intl tournaments. OFF = auto-simulate with result toast only.",
     toggleOn:          "ON",
     toggleOff:         "OFF",
+    soundTitle:        "Sound",
+    soundOn:           "On",
+    soundMuted:        "Muted",
+    soundBgm:          "Music",
+    soundSfx:          "SFX",
   },
 
   // Firebase Authentication

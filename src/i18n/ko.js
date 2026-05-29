@@ -470,6 +470,11 @@ export const ko = {
     finalsModalDesc:   "결승/PO/올스타/국제대회 라이브 시각화 모달을 띄울지. OFF 면 자동 진행 후 결과 토스트만.",
     toggleOn:          "ON",
     toggleOff:         "OFF",
+    soundTitle:        "사운드",
+    soundOn:           "켜짐",
+    soundMuted:        "음소거",
+    soundBgm:          "배경음악",
+    soundSfx:          "효과음",
   },
 
   // Firebase Authentication

@@ -14,6 +14,8 @@ import { createCharacterSVG } from "../render/character.js";
 import { createGameDate } from "../systems/tick.js";
 import { t, getLocale } from "../i18n/index.js";
 import { randomName } from "../data/names.js";
+import { createImage } from "../assets/images.js";
+import { sfx } from "../assets/audio.js";
 import { resetWeeklyCarousel } from "./weekly.js";
 
 // 신규 게임 입력 상태 (라이브 갱신용)
@@ -119,13 +121,20 @@ function buildLoadingPhase(wrap) {
 
 function buildStartMenu(wrap, route) {
   ensureSpinnerStyle();
-  // 로고 + 태그라인
+  // 로고/타이틀 일러스트 — 에셋 있으면 이미지, 없으면 로고 텍스트로 폴백.
   const hero = document.createElement("div");
   hero.style.cssText = "text-align:center; margin:14px 0 4px; animation:nir-fade .4s ease;";
-  const logo = document.createElement("div");
-  logo.textContent = t("app.logo");
-  logo.style.cssText = "font-size:30px; font-weight:800; color:var(--accent); letter-spacing:1px;";
-  hero.appendChild(logo);
+  const art = createImage("titleHero", {
+    alt: t("app.logo"),
+    style: "max-width:280px; margin:0 auto; border-radius:10px; overflow:hidden;",
+    fallback: () => {
+      const logo = document.createElement("div");
+      logo.textContent = t("app.logo");
+      logo.style.cssText = "font-size:30px; font-weight:800; color:var(--accent); letter-spacing:1px;";
+      return logo;
+    },
+  });
+  hero.appendChild(art);
   const tag = document.createElement("div");
   tag.className = "muted small";
   tag.style.cssText = "margin-top:4px; font-size:12px;";
@@ -142,6 +151,7 @@ function buildStartMenu(wrap, route) {
   startPanel.style.padding = "12px";
   if (hasSave()) {
     const cont = button(t("menu.continueBtn"), "primary", () => {
+      sfx("good");
       if (loadGame()) { resetWeeklyCarousel(); route("weekly"); }
     });
     cont.style.cssText = "width:100%; padding:13px; font-size:16px; font-weight:700; margin-bottom:8px;";
@@ -154,11 +164,11 @@ function buildStartMenu(wrap, route) {
       when.textContent = t("menu.lastSavedAt", { when: relativeTime(localTs) });
       startPanel.appendChild(when);
     }
-    const fresh = button(t("menu.newGameBtn"), "", () => route("menu"));
+    const fresh = button(t("menu.newGameBtn"), "", () => { sfx("click"); route("menu"); });
     fresh.style.cssText = "width:100%; padding:10px; font-size:13px;";
     startPanel.appendChild(fresh);
   } else {
-    const startBtn = button(t("menu.startBtn"), "primary", () => route("menu"));
+    const startBtn = button(t("menu.startBtn"), "primary", () => { sfx("click"); route("menu"); });
     startBtn.style.cssText = "width:100%; padding:13px; font-size:16px; font-weight:700;";
     startPanel.appendChild(startBtn);
   }

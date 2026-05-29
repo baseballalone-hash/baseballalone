@@ -11,6 +11,9 @@ const KEY = "ninthinning.settings.v1";
 
 const DEFAULTS = {
   skipFinalsModal: false,
+  muted: false,        // 전체 음소거
+  bgmVolume: 0.4,      // BGM 볼륨 0~1
+  sfxVolume: 0.6,      // 효과음 볼륨 0~1
 };
 
 export function loadSettings() {

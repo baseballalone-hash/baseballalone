@@ -19,6 +19,7 @@ import { formatGameDate, t, getLocale } from "../i18n/index.js";
 import { getActiveTournaments } from "../data/tournaments.js";
 import { simulateFinal, applyFinalReward } from "../systems/finals.js";
 import { createPOVScene, pulseDiamondHome } from "../render/finalAnim.js";
+import { sfx } from "../assets/audio.js";
 import { randomName } from "../data/names.js";
 import { getTeamPool } from "../data/teams.js";
 import { checkMilitaryTrigger, applyMilitaryService, MILITARY_OPTIONS } from "../systems/military.js";
@@ -472,6 +473,12 @@ function playLiveGame(dialog, result, opts) {
     diamondNode = node;
   }
   function appendEventLog(ev) {
+    // 효과음 — 메인 타석 결과에 맞춰 (홈런/안타/삼진).
+    if (ev.role === "batter") {
+      if (ev.type === "HR") sfx("homerun");
+      else if (["1B", "2B", "3B"].includes(ev.type)) sfx("hit");
+      else if (ev.type === "K") sfx("strikeout");
+    }
     const row = document.createElement("div");
     if (ev.type === "PIT_CHANGE") {
       const fromC = ev.fromIsMain ? "var(--accent-2)" : "inherit";

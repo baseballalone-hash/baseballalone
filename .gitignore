@@ -15,6 +15,10 @@ desktop.ini
 tmp/
 .tmp/
 
+# 의존성 (probe/검증용 --no-save 설치분 — 커밋 안 함)
+node_modules/
+package-lock.json
+
 # 환경 변수
 .env
 .env.local
