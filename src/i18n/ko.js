@@ -659,6 +659,8 @@ export const ko = {
     SB:  "도루",
     CS:  "도루실패",
     PIT_CHANGE: "투수 교체",
+    PH:  "대타",
+    PR:  "대주자",
     COLD_GAME: "콜드게임 종료",
   },
 

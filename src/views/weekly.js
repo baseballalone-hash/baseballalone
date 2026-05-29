@@ -420,6 +420,10 @@ function playLiveGame(dialog, result, opts) {
       // sideIsPlayer=false: 상대 마운드 교체 = 메인이 공격하는 half
       return ev.sideIsPlayer ? (isHome ? "top" : "bottom") : (isHome ? "bottom" : "top");
     }
+    if (ev.type === "PH" || ev.type === "PR") {
+      // 대타/대주자는 공격 측 액션 — sideIsPlayer=true 면 메인이 공격하는 half
+      return ev.sideIsPlayer ? (isHome ? "bottom" : "top") : (isHome ? "top" : "bottom");
+    }
     if (ev.role === "batter") return isHome ? "bottom" : "top";
     return isHome ? "top" : "bottom";
   }
@@ -471,6 +475,9 @@ function playLiveGame(dialog, result, opts) {
     const row = document.createElement("div");
     if (ev.type === "PIT_CHANGE") {
       row.innerHTML = `<span style="color:var(--muted); font-weight:700">[${ev.inning}] ${t("event.PIT_CHANGE")}</span> ${ev.from} → <span style="color:${ev.toIsMain ? "var(--accent-2)" : "inherit"}">${ev.to}</span>`;
+    } else if (ev.type === "PH" || ev.type === "PR") {
+      const arrow = ev.from ? `${ev.from} → ` : "";
+      row.innerHTML = `<span style="color:var(--muted); font-weight:700">[${ev.inning}] ${t("event." + ev.type)}</span> ${arrow}<span style="color:${ev.toIsMain ? "var(--accent)" : "inherit"}">${ev.to}</span>`;
     } else if (ev.type === "COLD_GAME") {
       row.innerHTML = `<span style="color:var(--accent); font-weight:700">[${ev.inning}] ${t("event.COLD_GAME")}</span>`;
     } else {
@@ -1508,6 +1515,18 @@ function openGameReplayModal(gameResult) {
   (async function run() {
     for (const ev of events) {
       if (cancelled) return;
+      // 교체/대타/대주자 등 시스템 이벤트는 POV 투구 없이 로그만.
+      if (ev.role === "system") {
+        const row = document.createElement("div");
+        const lbl = t("event." + ev.type) || ev.type;
+        const arrow = ev.from ? `${ev.from} → ` : "";
+        const to = ev.to ? `${arrow}${ev.to}` : "";
+        row.innerHTML = `<span style="color:var(--muted); font-weight:700">[${ev.inning}] ${lbl}</span> ${to}`;
+        logBox.appendChild(row);
+        logBox.scrollTop = logBox.scrollHeight;
+        await new Promise(r => setTimeout(r, 120));
+        continue;
+      }
       const mode = ev.role === "batter" ? "bat" : "pit";
       if (mode !== currentMode) {
         currentScene = createPOVScene(mode);

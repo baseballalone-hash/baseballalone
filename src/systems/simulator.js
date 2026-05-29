@@ -179,6 +179,143 @@ function makeRunner(batter) {
   };
 }
 
+// ─────── 대타(PH) / 대주자(PR) ───────
+
+// 라인업 상태 — 타순 인덱스 + 벤치 + 교체 추적. 대타/대주자가 lineup/bench 를 직접 변형.
+function makeLineupState(lineup, bench, side, isPlayerTeam, mainBenchEntry, track) {
+  return {
+    lineup,
+    bench: [...bench],
+    side,
+    isPlayerTeam,
+    mainBenchEntry,
+    mainUsed: false,
+    idx: 0,
+    subbedSlots: new Set(),
+    track,
+  };
+}
+
+function entryBatterOVR(e) {
+  const b = e?.batter;
+  if (!b) return 0;
+  return ((b.contact ?? 50) + (b.power ?? 50) + (b.eye ?? 50) + (b.speed ?? 50) + (b.defense ?? 50)) / 5;
+}
+function entrySpeed(e) { return e?.batter?.speed ?? 50; }
+
+function bestBenchBat(bench) {
+  let best = null, bestOvr = -1;
+  for (const e of bench) {
+    const o = entryBatterOVR(e);
+    if (o > bestOvr) { bestOvr = o; best = e; }
+  }
+  return best;
+}
+function fastestBench(bench) {
+  let best = null, bestSp = -1;
+  for (const e of bench) {
+    const s = entrySpeed(e);
+    if (s > bestSp) { bestSp = s; best = e; }
+  }
+  return best;
+}
+function removeFromBench(ls, entry) {
+  const i = ls.bench.indexOf(entry);
+  if (i >= 0) ls.bench.splice(i, 1);
+  if (ls.mainBenchEntry === entry) ls.mainBenchEntry = null;
+}
+
+// 타순에서 다음 타자 — 대타 굴림 후 반환.
+function takeNextBatter(ls, ctx) {
+  const n = ls.lineup.length;
+  const slot = ls.idx % n;
+  ls.idx++;
+  maybePinchHit(ls, slot, ctx);
+  return ls.lineup[slot];
+}
+
+// 대타 — 후반(7회+):
+//   플레이어 팀: 벤치에 밀린 메인을 대타로 투입해 참여 보장.
+//   그 외: 접전(3점차 이내)에서 약한 타순을 벤치 최고타자로 교체.
+// 한 타순은 한 번만 교체 (재출장 없음). 메인이 선발이면 도중에 빼지 않음.
+function maybePinchHit(ls, slot, ctx) {
+  if (ctx.inning < 7) return;
+  if (ls.subbedSlots.has(slot)) return;
+  const cur = ls.lineup[slot];
+  if (cur.isMain) return;
+
+  if (ls.isPlayerTeam && ls.mainBenchEntry && !ls.mainUsed) {
+    // 강타자를 일찍 빼지 않도록 — 약한 타순 우선, 단 8회부터는 데드라인으로 무조건 투입.
+    const avg = lineupAvgOVR(ls.lineup);
+    if (ctx.inning >= 8 || entryBatterOVR(cur) <= avg) {
+      performSub(ls, slot, cur, ls.mainBenchEntry, ctx, "PH");
+    }
+    return;
+  }
+  if (Math.abs(ctx.leadDiff) > 3) return;
+  const best = bestBenchBat(ls.bench);
+  if (best && entryBatterOVR(best) >= entryBatterOVR(cur) + 5) {
+    performSub(ls, slot, cur, best, ctx, "PH");
+  }
+}
+
+function lineupAvgOVR(lineup) {
+  if (!lineup.length) return 50;
+  let s = 0;
+  for (const e of lineup) s += entryBatterOVR(e);
+  return s / lineup.length;
+}
+
+function performSub(ls, slot, cur, sub, ctx, type) {
+  removeFromBench(ls, sub);
+  ls.lineup[slot] = sub;
+  ls.subbedSlots.add(slot);
+  if (sub.isMain) {
+    ls.mainUsed = true;
+    if (ls.track) { ls.track.pinchHit = true; ls.track.batted = true; ls.track.slot = slot; }
+  }
+  ctx.events.push({
+    inning: ctx.inning, type, role: "system",
+    from: cur.name, to: sub.name,
+    fromIsMain: !!cur.isMain, toIsMain: !!sub.isMain,
+    sideIsPlayer: ls.isPlayerTeam, runsScored: 0,
+  });
+}
+
+// 대주자 — 후반(7회+) 접전에서 베이스의 느린 주자를 빠른 벤치 주자로 교체.
+//   플레이어 팀: 벤치 메인이 더 빠르면 메인 우선 투입.
+//   메인 주자/이미 교체된 주자(_pr)는 건드리지 않음. 한 PA 당 1명만.
+function maybePinchRun(ls, bases, ctx) {
+  if (ctx.inning < 7 || Math.abs(ctx.leadDiff) > 3) return;
+  for (let i = 0; i < 3; i++) {
+    const r = bases[i];
+    if (!r || r.isMain || r._pr) continue;
+    let sub = null;
+    if (ls.isPlayerTeam && ls.mainBenchEntry && !ls.mainUsed
+        && entrySpeed(ls.mainBenchEntry) >= (r.speed ?? 50) + 8) {
+      sub = ls.mainBenchEntry;
+    } else {
+      const cand = fastestBench(ls.bench);
+      if (cand && entrySpeed(cand) >= (r.speed ?? 50) + 12) sub = cand;
+    }
+    if (!sub) continue;
+    removeFromBench(ls, sub);
+    const isMainSub = !!sub.isMain;
+    if (isMainSub) {
+      ls.mainUsed = true;
+      if (ls.track) ls.track.pinchRun = true;
+    }
+    bases[i] = { isMain: isMainSub, speed: entrySpeed(sub), _pr: true };
+    ctx.events.push({
+      inning: ctx.inning, type: "PR", role: "system",
+      from: r.name ?? "", to: sub.name,
+      fromIsMain: false, toIsMain: isMainSub,
+      sideIsPlayer: ls.isPlayerTeam, runsScored: 0,
+    });
+    return;
+  }
+}
+
 // 한 경기 전체 시뮬레이션
 // 양방향 선수: 부상 아니면 매 경기 타자로 라인업 + 선발 투수로 등판.
 // opts.forcedRoles 가 주어지면 그대로 사용 (결승/PO 진입 모달에서 미리 굴린 결과 전달용).
@@ -189,16 +326,27 @@ export function simulateGame(league, gameDef, mainPlayer, opts = {}) {
   const playerTeam = mainPlayer && (home.isPlayerTeam ? home : away.isPlayerTeam ? away : null);
   const mainTeamSide = playerTeam === home ? "home" : (playerTeam === away ? "away" : null);
   const roles = opts.forcedRoles
-    ? { bat: !!opts.forcedRoles.bat, pitch: !!opts.forcedRoles.pitch }
-    : (mainPlayer && playerTeam ? decideRolesForGame(mainPlayer, playerTeam) : { bat: false, pitch: false });
+    ? { bat: !!opts.forcedRoles.bat, pitch: !!opts.forcedRoles.pitch,
+        pitchRole: opts.forcedRoles.pitchRole ?? (opts.forcedRoles.pitch ? "SP" : null) }
+    : (mainPlayer && playerTeam ? decideRolesForGame(mainPlayer, playerTeam) : { bat: false, pitch: false, pitchRole: null });
 
-  const homeBuilt = buildLineup(home, playerTeam === home && roles.bat ? mainPlayer : null);
-  const awayBuilt = buildLineup(away, playerTeam === away && roles.bat ? mainPlayer : null);
+  // 메인 참여 추적 — 선발/대타/대주자/구원 여부 (반환 객체 batStatus/pitchStatus 용).
+  const mainTrack = { batted: false, started: false, pinchHit: false, pinchRun: false, pitched: false, slot: null };
+
+  const homeBuilt = buildLineup(home, (playerTeam === home && roles.bat) ? mainPlayer : null, mainTrack);
+  const awayBuilt = buildLineup(away, (playerTeam === away && roles.bat) ? mainPlayer : null, mainTrack);
   const homeLineup = homeBuilt.lineup;
   const awayLineup = awayBuilt.lineup;
-  const mainLineupSlot = homeBuilt.mainSlot ?? awayBuilt.mainSlot ?? null;   // 0-indexed
-  const homePitcher = pickStartingPitcher(home, playerTeam === home && roles.pitch ? mainPlayer : null);
-  const awayPitcher = pickStartingPitcher(away, playerTeam === away && roles.pitch ? mainPlayer : null);
+
+  // 선발 투수 — 메인은 pitchRole "SP" 일 때만 선발.
+  const homePitcher = pickStartingPitcher(home, (playerTeam === home && roles.pitchRole === "SP") ? mainPlayer : null);
+  const awayPitcher = pickStartingPitcher(away, (playerTeam === away && roles.pitchRole === "SP") ? mainPlayer : null);
+  // 메인 구원 등판 — pitchRole "RP" 면 해당 팀 불펜에 추가 후보로 주입.
+  const mainReliefEntry = (roles.pitchRole === "RP" && mainPlayer) ? asReliefEntry(mainPlayer) : null;
+
+  // 라인업 상태 (대타/대주자 교체 추적) — 양팀.
+  const homeLS = makeLineupState(homeLineup, homeBuilt.bench, "home", !!home.isPlayerTeam, homeBuilt.mainBenchEntry, mainTrack);
+  const awayLS = makeLineupState(awayLineup, awayBuilt.bench, "away", !!away.isPlayerTeam, awayBuilt.mainBenchEntry, mainTrack);
 
   const myBoxBatter = emptyStats();
   const myBoxPitcher = emptyStats();
@@ -206,8 +354,6 @@ export function simulateGame(league, gameDef, mainPlayer, opts = {}) {
 
   let homeScore = 0;
   let awayScore = 0;
-  let awayBatterIdx = 0;
-  let homeBatterIdx = 0;
   const homeInnings = [];
   const awayInnings = [];
 
@@ -216,9 +362,9 @@ export function simulateGame(league, gameDef, mainPlayer, opts = {}) {
   // 수비팀 평균 defense — 실책(E) 굴림에 사용
   const homeDefense = teamDefenseRating(homeLineup);
   const awayDefense = teamDefenseRating(awayLineup);
-  // 양팀 mound 상태 (현재 등판 + 사용한 투수 풀)
-  const homeMound = createMoundState(home, homePitcher);
-  const awayMound = createMoundState(away, awayPitcher);
+  // 양팀 mound 상태 (현재 등판 + 사용한 투수 풀 + 메인 구원 후보)
+  const homeMound = createMoundState(home, homePitcher, (playerTeam === home && mainReliefEntry) ? mainReliefEntry : null);
+  const awayMound = createMoundState(away, awayPitcher, (playerTeam === away && mainReliefEntry) ? mainReliefEntry : null);
   // 결승투수 결정용 — 결승점이 들어온 시점의 양팀 투수.
   // homeAhead/awayAhead 가 바뀐 마지막 시점에 lockIn.
   let leadHistory = []; // [{ inning, leadingTeam: 'home'|'away'|'tie', leadingPitcher, trailingPitcher }]
@@ -231,11 +377,8 @@ export function simulateGame(league, gameDef, mainPlayer, opts = {}) {
       : [null, null, null];
 
     // away 공격 = home 수비. defending mound = homeMound, defSide = "home".
-    const awayRuns = playHalfInning(awayLineup, homeMound, myBoxBatter, myBoxPitcher, events, () => {
-      const b = awayLineup[awayBatterIdx % awayLineup.length];
-      awayBatterIdx++;
-      return b;
-    }, inning, [...initialBases], homeDefense, "home", () => ({ home: homeScore, away: awayScore }),
+    const awayRuns = playHalfInning(awayLS, homeMound, myBoxBatter, myBoxPitcher, events,
+       inning, [...initialBases], homeDefense, "home", () => ({ home: homeScore, away: awayScore }),
        mainTeamSide, mainPlayer, rule);
     awayScore += awayRuns;
     awayInnings.push(awayRuns);
@@ -248,11 +391,8 @@ export function simulateGame(league, gameDef, mainPlayer, opts = {}) {
     }
 
     // home 공격 = away 수비. defending mound = awayMound, defSide = "away".
-    const homeRuns = playHalfInning(homeLineup, awayMound, myBoxBatter, myBoxPitcher, events, () => {
-      const b = homeLineup[homeBatterIdx % homeLineup.length];
-      homeBatterIdx++;
-      return b;
-    }, inning, [...initialBases], awayDefense, "away", () => ({ home: homeScore, away: awayScore }),
+    const homeRuns = playHalfInning(homeLS, awayMound, myBoxBatter, myBoxPitcher, events,
+       inning, [...initialBases], awayDefense, "away", () => ({ home: homeScore, away: awayScore }),
        mainTeamSide, mainPlayer, rule);
     const homeScoreBeforeBottom = homeScore;
     homeScore += homeRuns;
@@ -324,6 +464,9 @@ export function simulateGame(league, gameDef, mainPlayer, opts = {}) {
   // 게임에 등판한 NPC pitcher ID — week.js 가 휴식 카운터 reset 용.
   const usedNpcPitcherIds = [...homeMound.usedIds, ...awayMound.usedIds].filter(id => id !== -1);
 
+  // 메인 등판 확정 — PA 1개 이상 잡았으면 등판한 것 (선발이든 구원이든).
+  if ((myBoxPitcher.pa ?? 0) > 0) mainTrack.pitched = true;
+
   return {
     home: { team: home, score: homeScore, pitcher: homePitcher.name, innings: homeInnings },
     away: { team: away, score: awayScore, pitcher: awayPitcher.name, innings: awayInnings },
@@ -332,14 +475,20 @@ export function simulateGame(league, gameDef, mainPlayer, opts = {}) {
     usedNpcPitcherIds,
     mainPlayer: (roles.bat || roles.pitch) ? {
       roles,
+      // 메인 참여 형태 — UI 표시용.
+      //   bat: "starter" | "pinchHit" | "pinchRun" | "none"
+      //   pitch: "starter" | "relief" | "none"
+      batStatus: mainTrack.pinchHit ? "pinchHit" : mainTrack.pinchRun ? "pinchRun" : mainTrack.started ? "starter" : "none",
+      pitchStatus: mainTrack.pitched ? (roles.pitchRole === "RP" ? "relief" : "starter") : "none",
       batterBox: roles.bat ? myBoxBatter : null,
-      pitcherBox: roles.pitch ? myBoxPitcher : null,
+      // 구원 후보였지만 실제 등판 안 했으면(PA 0) 박스 미표시.
+      pitcherBox: (roles.pitch && (myBoxPitcher.pa ?? 0) > 0) ? myBoxPitcher : null,
       events,
       hbpInjury: myBoxBatter?._hbpInjury ?? null,
-      // 메인이 타석에 선 경우의 1-indexed 타순 (3 → "3번")
-      lineupSlot: mainLineupSlot != null ? mainLineupSlot + 1 : null,
-      // 메인이 강판됐는지 — myBoxPitcher.ipOuts < 27(9이닝) 이면 강판 OR 게임 조기 종료(콜드/끝내기).
-      pitcherReplaced: roles.pitch && (myBoxPitcher.ipOuts ?? 0) < 27 && !coldGame
+      // 메인이 타석/대타로 선 경우의 1-indexed 타순 (3 → "3번")
+      lineupSlot: mainTrack.slot != null ? mainTrack.slot + 1 : null,
+      // 강판 판정은 선발 등판에만 의미 — myBoxPitcher.ipOuts < 27(9이닝) 이면 강판 OR 조기 종료.
+      pitcherReplaced: roles.pitchRole === "SP" && (myBoxPitcher.ipOuts ?? 0) < 27 && !coldGame
                         && !(homeScore !== awayScore && (homeInnings.length < 9 || awayInnings.length < 9)),
     } : null,
   };
@@ -431,42 +580,90 @@ function coachJudgment(player, team, options = {}) {
   return 0.10;                     // 극단 약체 — 드물게라도 등판
 }
 
+// 선발 탈락 시 불펜 등판 확률 — 휴식 충분할 때만, 낮게.
+// "수준이하라 선발엔 못 들지만 불펜으로는 교체출장" 케이스.
+function reliefChance(restGames) {
+  if (restGames < 1) return 0;       // 직전 등판 — 연투 회피
+  if (restGames === 1) return 0.08;
+  return 0.14;                       // 2일+ 휴식
+}
+
 // UI 표시용 — 현재 출장 확률 (0~1). team 생략 시 코치판단 = 1.
+// pitch 는 선발 + 구원 합산 추정.
 export function appearanceChance(player, team = null) {
   if (player.injury) return { bat: 0, pitch: 0 };
   const restGames = player.gamesSinceLastPitch ?? 99;
   const judgment = coachJudgment(player, team);
-  return { bat: 1, pitch: pitcherChanceByRest(restGames) * judgment };
+  const startP = pitcherChanceByRest(restGames) * judgment;
+  const reliefP = (1 - startP) * reliefChance(restGames);
+  return { bat: 1, pitch: clamp(startP + reliefP, 0, 1) };
 }
 
 // options.gateType: "championship" | "po_long" | "po_short" | null
 // 포스트시즌 진입 모달이 round 정보를 알기에 호출지가 결정해서 전달.
-// 결승/PO 에서 cutoff 밖이면 pitch = false (강제 차단).
+// 결승/PO 에서 cutoff 밖이면 선발 차단 (구원도 미적용 — 단기 시리즈 SP 깊이 보존).
+// 반환: { bat, pitch, pitchRole } — pitchRole: "SP" | "RP" | null.
 export function decideRolesForGame(player, team, options = {}) {
-  if (player.injury) return { bat: false, pitch: false };
+  if (player.injury) return { bat: false, pitch: false, pitchRole: null };
   const restGames = player.gamesSinceLastPitch ?? 99;
   const restChance = pitcherChanceByRest(restGames);
   const judgment = coachJudgment(player, team, options);
-  return {
-    bat: true,
-    pitch: Math.random() < restChance * judgment,
-  };
+  let pitchRole = null;
+  if (Math.random() < restChance * judgment) {
+    pitchRole = "SP";                                                   // 선발 등판
+  } else if (!options.gateType && Math.random() < reliefChance(restGames)) {
+    pitchRole = "RP";                                                   // 선발 탈락 → 불펜 구원
+  }
+  return { bat: true, pitch: pitchRole != null, pitchRole };
 }
 
-function buildLineup(team, mainPlayerForBat) {
-  // 부상 NPC 제외. 9명 못 채우면 부상자도 넣어서 강행 (드문 케이스).
+// 라인업 구성 — 팀 내 상대평가로 선발 9명 결정.
+//   건강한 야수 + (있다면) 메인을 OVR 기준 한 풀에서 정렬해 상위 9명만 선발.
+//   메인이 9위 밖이면 선발 제외 → bench 로 빠지고 후반 대타/대주자 후보가 된다.
+//   부상자는 최후 충원용 (9명 못 채울 때만).
+// 반환: { lineup, mainSlot, mainStarted, bench, mainBenchEntry }
+function buildLineup(team, mainPlayerForBat, mainTrack = null) {
   const healthy = team.roster.filter(p => p.role === "batter" && !p.injury);
-  const fallback = team.roster.filter(p => p.role === "batter" && p.injury);
-  const ordered = [...healthy.sort((a, b) => npcOverall(b) - npcOverall(a)), ...fallback];
-  const lineup = ordered.slice(0, 9);
-  let mainSlot = null;
+  const injured = team.roster.filter(p => p.role === "batter" && p.injury);
+
+  const pool = healthy.map(p => ({ entry: p, ovr: npcOverall(p), isMain: false }));
+  let mainOvr = null;
   if (mainPlayerForBat) {
     const b = mainPlayerForBat.batter;
-    const ovr = (b.contact + b.power + b.eye + b.speed + b.defense) / 5;
-    mainSlot = ovr > 60 ? 3 : ovr > 50 ? 4 : 6;
-    lineup.splice(mainSlot, 1, asLineupEntry(mainPlayerForBat));
+    mainOvr = (b.contact + b.power + b.eye + b.speed + b.defense) / 5;
+    pool.push({ entry: null, ovr: mainOvr, isMain: true });
   }
-  return { lineup, mainSlot };
+  pool.sort((a, b) => b.ovr - a.ovr);
+
+  let starters = pool.slice(0, 9);
+  const benchPool = pool.slice(9);
+  // 9명 미달 시 부상자로 강행 충원.
+  if (starters.length < 9) {
+    const fill = injured.map(p => ({ entry: p, ovr: npcOverall(p), isMain: false }));
+    starters = [...starters, ...fill].slice(0, 9);
+  }
+
+  const npcStarters = starters.filter(x => !x.isMain).map(x => x.entry);
+  const mainInStarters = starters.some(x => x.isMain);
+
+  let lineup, mainSlot = null, mainStarted = false, mainBenchEntry = null;
+  if (mainInStarters) {
+    mainStarted = true;
+    mainSlot = mainOvr > 60 ? 3 : mainOvr > 50 ? 4 : 6;
+    mainSlot = Math.min(mainSlot, npcStarters.length);   // npcStarters 는 8명 — 안전 클램프
+    lineup = [...npcStarters];
+    lineup.splice(mainSlot, 0, asLineupEntry(mainPlayerForBat));
+    lineup = lineup.slice(0, 9);
+    if (mainTrack) { mainTrack.started = true; mainTrack.batted = true; mainTrack.slot = mainSlot; }
+  } else {
+    lineup = npcStarters.slice(0, 9);
+    if (mainPlayerForBat) mainBenchEntry = asLineupEntry(mainPlayerForBat);
+  }
+
+  // 벤치 — 선발 못 든 건강 야수 (OVR desc). 메인 벤치 엔트리는 별도 전달.
+  const bench = benchPool.filter(x => !x.isMain).map(x => x.entry);
+
+  return { lineup, mainSlot, mainStarted, bench, mainBenchEntry };
 }
 
 function pickStartingPitcher(team, mainPlayerForPitch) {
@@ -505,15 +702,29 @@ function asPitcherEntry(mainPlayer) {
     pitcher: getEffectivePitcher(mainPlayer),
   };
 }
+// 메인 구원 등판용 엔트리 — pos RP, 중간계투(MR) 취급.
+function asReliefEntry(mainPlayer) {
+  return {
+    id: -1,
+    name: mainPlayer.name,
+    role: "pitcher",
+    pos: "RP",
+    bullpenRole: "MR",
+    isMain: true,
+    pitcher: getEffectivePitcher(mainPlayer),
+  };
+}
 
 // 마운드 상태 — 현재 등판 + 사용한 투수 목록 + 투수별 누적 (PA/허용 점수/잡은 outs).
 // W/L/SV 결정용으로 currentByInning 도 추적.
-function createMoundState(team, startingPitcher) {
+function createMoundState(team, startingPitcher, mainReliever = null) {
   const usedIds = new Set([startingPitcher.id]);
   return {
     team,
     current: startingPitcher,
     usedIds,
+    // 로스터 밖 구원 후보 (메인이 pitchRole RP 일 때). pickReliever 가 풀에 합산.
+    extraRelievers: mainReliever ? [mainReliever] : [],
     pitcherStats: new Map(), // id -> {paFaced, runsAllowed, outsRecorded}
   };
 }
@@ -555,31 +766,41 @@ function shouldReplacePitcher(mound, inning, leadDiff, isWinning, trigger) {
   return false;
 }
 
-function pickReliever(mound) {
-  const candidates = mound.team.roster.filter(p =>
-    p.role === "pitcher" && !p.injury && !mound.usedIds.has(p.id)
-  );
-  // 휴식 1게임+ 우선. 그 다음 RP 우선. 그 다음 OVR.
-  candidates.sort((a, b) => {
-    const aRest = (a.gamesSinceLastPitch ?? 99) >= 1 ? 1 : 0;
-    const bRest = (b.gamesSinceLastPitch ?? 99) >= 1 ? 1 : 0;
-    if (aRest !== bRest) return bRest - aRest;
-    const aRP = a.pos === "RP" ? 1 : 0;
-    const bRP = b.pos === "RP" ? 1 : 0;
-    if (aRP !== bRP) return bRP - aRP;
-    return npcOverall(b) - npcOverall(a);
-  });
+// 구원 투수 선택 — 상황별 역할 우선.
+//   세이브 상황(승리 중 + 리드 1~3): 9회+ → 마무리(CL), 8회 → 셋업(SU)
+//   그 외: 휴식 충분 + 중간계투(MR) 우선, SP 는 후순위, 마무리는 세이브 외엔 아껴둠.
+// 후보 풀 = 팀 로스터 투수 + 메인 구원 후보(extraRelievers), 이미 등판(usedIds) 제외.
+function pickReliever(mound, ctx = {}) {
+  const pool = [
+    ...mound.team.roster.filter(p => p.role === "pitcher" && !p.injury),
+    ...(mound.extraRelievers ?? []),
+  ].filter(p => !mound.usedIds.has(p.id));
+
+  const save = !!ctx.isWinning && ctx.leadDiff >= 1 && ctx.leadDiff <= 3;
+  let preferRole = null;
+  if (save && (ctx.inning ?? 0) >= 9) preferRole = "CL";
+  else if (save && ctx.inning === 8) preferRole = "SU";
+
+  function score(p) {
+    let s = 0;
+    if ((p.gamesSinceLastPitch ?? 99) >= 1) s += 1000;       // 휴식 1게임+ 최우선
+    if (preferRole && p.bullpenRole === preferRole) s += 500; // 상황 역할 매칭
+    if (p.pos === "SP") s -= 300;                             // 선발은 구원으로 후순위
+    else if (p.bullpenRole === "CL" && !save) s -= 200;       // 마무리는 세이브 외엔 아낌
+    return s + npcOverall(p);
+  }
+  pool.sort((a, b) => score(b) - score(a));
   // 부상 없는 후보 전혀 없으면 부상자라도 강행 — fallback
-  if (candidates.length === 0) {
+  if (pool.length === 0) {
     const anyone = mound.team.roster.find(p => p.role === "pitcher");
     return anyone ?? mound.current;
   }
-  return candidates[0];
+  return pool[0];
 }
 
 function tryReplace(mound, inning, leadDiff, isWinning, trigger, events) {
   if (!shouldReplacePitcher(mound, inning, leadDiff, isWinning, trigger)) return false;
-  const newP = pickReliever(mound);
+  const newP = pickReliever(mound, { inning, leadDiff, isWinning });
   if (!newP || newP === mound.current || newP.id === mound.current.id) return false;
   events.push({
     inning, type: "PIT_CHANGE", role: "system",
@@ -593,12 +814,18 @@ function tryReplace(mound, inning, leadDiff, isWinning, trigger, events) {
   return true;
 }
 
-function playHalfInning(battingLineup, mound, myBox, myPbox, events, nextBatter,
+function playHalfInning(ls, mound, myBox, myPbox, events,
                        inning, initialBases, defenseRating, defSide, getScores,
                        mainTeamSide = null, mainPlayer = null, rule = null) {
   let outs = 0;
   let runs = 0;
   let bases = initialBases ? [...initialBases] : [null, null, null];
+  const regulation = rule?.regulation ?? 9;
+  // 공격팀 리드 (양수=리드, 음수=뒤짐) — 대타/대주자 발동 판단용.
+  function battingLeadDiff() {
+    const sc = getScores();
+    return defSide === "home" ? sc.away - sc.home : sc.home - sc.away;
+  }
 
   // 이닝 시작 강판 굴림
   {
@@ -631,8 +858,13 @@ function playHalfInning(battingLineup, mound, myBox, myPbox, events, nextBatter,
       }
     }
 
-    // ─ 타석 ─
-    const batter = nextBatter();
+    // ─ 타석 ─ (대타 굴림 포함)
+    const batter = takeNextBatter(ls, {
+      inning, regulation, outs,
+      leadDiff: battingLeadDiff(),
+      runnersOn: bases.filter(Boolean).length,
+      events,
+    });
     const isMainBat = batter.isMain;
     const bStats = batter.batter ?? batter;
 
@@ -679,6 +911,9 @@ function playHalfInning(battingLineup, mound, myBox, myPbox, events, nextBatter,
     runs += ab.runs;
     bases = ab.bases;
     outs += ab.outsAdded;
+
+    // ─ 대주자 굴림 ─ 출루 직후, 느린 주자를 빠른 벤치 주자로 교체 (후반 접전).
+    maybePinchRun(ls, bases, { inning, leadDiff: battingLeadDiff(), events });
 
     // 메인 outs 누적 (강판 후 NPC 던지면 안 누적)
     if (isMainPit) myPbox.ipOuts = (myPbox.ipOuts ?? 0) + ab.outsAdded;

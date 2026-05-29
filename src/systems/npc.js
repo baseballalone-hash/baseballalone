@@ -133,6 +133,35 @@ export function createRoster(strength, ageRange, opts = {}) {
     if (dummy) { n.isDummy = true; n.name = dummyName(teamName, stage, "pitcher", i); }
     roster.push(n);
   }
+  assignBullpenRoles(roster);
+  return roster;
+}
+
+// 불펜 구조 정리 — 실제 야구 투수 운용 모방.
+//   1) SP 최소 5명 보장 (부족하면 RP 중 OVR 높은 순으로 선발 전환)
+//   2) RP 중 OVR 최고 1명 = 마무리(CL), 다음 1~2명 = 셋업(SU), 나머지 = 중간계투(MR)
+// bullpenRole 은 RP 에만 부여. pos 는 "SP"/"RP" 유지 (기존 필터와 호환).
+// 매 시즌(ageUp) 후에도 재호출해 성장/은퇴 반영.
+export function assignBullpenRoles(roster) {
+  const pitchers = roster.filter(p => p.role === "pitcher");
+  let sps = pitchers.filter(p => p.pos === "SP");
+  if (sps.length < 5) {
+    const promote = pitchers
+      .filter(p => p.pos === "RP")
+      .sort((a, b) => npcOverall(b) - npcOverall(a));
+    for (const p of promote) {
+      if (sps.length >= 5) break;
+      p.pos = "SP";
+      sps.push(p);
+    }
+  }
+  for (const p of sps) delete p.bullpenRole;
+  const rps = pitchers
+    .filter(p => p.pos === "RP")
+    .sort((a, b) => npcOverall(b) - npcOverall(a));
+  rps.forEach((p, i) => {
+    p.bullpenRole = i === 0 ? "CL" : i <= 2 ? "SU" : "MR";
+  });
   return roster;
 }
 
@@ -199,6 +228,7 @@ export function ageUpRoster(roster, stage, strength, teamName = null) {
     if (dummy) { n.isDummy = true; n.name = dummyName(teamName, stage, "pitcher", i); }
     remaining.push(n);
   }
+  assignBullpenRoles(remaining);
   return remaining;
 }
 
