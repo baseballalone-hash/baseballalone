@@ -14,9 +14,8 @@
 - **이벤트 컷 8장 wiring 완료** — 우승(buildFinalResult)/입단(드래프트 모달)/HoF(careerEnded, rank hof)/
   군입대(openMilitaryModal)/올스타·국제대회(result 화면)/특훈(offseason intense·camp)/시상(awards 슬라이드).
   공용 헬퍼 `eventCut(key)` (weekly.js, 파일 없으면 미표시). title-hero 는 타이틀 화면.
-- BGM 파일 아직 없음(무음). 효과음은 합성으로 동작 중.
-- 미생성 이벤트 컷: **부상/토미존, 은퇴, 강등, FA/트레이드** (+휴식기 옵션).
-- 원본 `gemini_images/`(70MB) 는 .gitignore (가공본만 커밋).
+- 원본 `gemini_images/`(70MB)·`aibgm/` 는 .gitignore (가공본만 커밋).
+- ✅ **현재 에셋(이미지 14 + BGM 2 + 합성 효과음)은 전부 생성·연결·배포 완료.** 라이브 200 확인.
 
 ## 큰 그림 / 결정 사항
 게임에 **바이너리 에셋(이미지 + 오디오)** 을 추가한다. 기존 원칙(zero-asset, 코드생성 SVG)에서 벗어나는 결정.
@@ -54,32 +53,36 @@
 - `src/views/weekly.js` — 라이브 로그 `appendEventLog` 에서 메인 타석 HR/안타/삼진 효과음.
 - i18n: `settingsModal.soundTitle/soundOn/soundMuted/soundBgm/soundSfx` (ko/en).
 
-## 필요한 에셋 파일 (넣으면 바로 작동)
-이미지 `assets/img/`: `title-hero.png` (타이틀, ~1024×640), `event-draft.png`, `event-champion.png`.
-오디오 `assets/audio/`: `bgm-menu.mp3` (메뉴 루프 ≤1MB), `bgm-game.mp3` (경기 루프 ≤1MB).
-(상세 스펙은 `assets/README.md`.)
-
 ## 진행 메모 (v0.7.1 fix — 이번 세션)
 - 배포: firebase.json ignore 에서 `assets/**` 제거(→ 이미지·BGM 배포). 원본 폴더는 ignore.
 - 오디오: 효과음 suspended-resume + 모든 버튼 클릭음. 모달 통과클릭 전역 가드(main.js).
 - 콜업: 같은 구단 유지(teamForStageKeeping) + 콜업 모달(showPromotionModal). 휴식기 타이틀 프로=나이.
 
-## 다음 세션 — 결승 POV / 캐릭터 생성 이미지 + 애니메이션 (사용자 요청, 미착수)
-- 대상: ① 결승전 라이브 모달 POV 씬(`src/render/finalAnim.js` createPOVScene — 현재 SVG),
-  ② 캐릭터 생성 화면(`src/views/menu.js` renderPreview — 현재 createCharacterSVG).
-- 이미지: Gemini 로 생성(프롬프트는 `assets/README.md` Phase 2 에 POV/캐릭터 항목 추가해둠).
-- **애니메이션 현실성**: Gemini 는 정지 이미지만. 선택지 —
-  (a) 정지 이미지 + CSS 미세 애니(살짝 줌/흔들림/패럴랙스) — 쉽고 가벼움, 권장 1순위.
-  (b) 스프라이트 시트(여러 프레임 한 장) → CSS steps() 로 프레임 애니 — 타격 폼 등.
-  (c) 영상 생성(Veo 등) → 짧은 루프 webp/mp4 — 용량·생성난도↑.
-- 권장: 우선 (a) 로 정지 일러스트 교체 + 은은한 모션, 반응 보고 (b) 검토.
+## ★ 다음 개발 사항 — 결승 POV / 캐릭터 생성 이미지 + 애니메이션 (사용자 요청, 미착수)
+
+**목표:** ① 결승 라이브 모달의 POV 씬과 ② 캐릭터 생성 미리보기를 일러스트로 교체하고, 가능하면 움직이게.
+
+**대상 코드:**
+- POV: `src/render/finalAnim.js` `createPOVScene(mode)` — 현재 SVG(타석/마운드). `playPitch(ev)`가 프레임 호출.
+- 캐릭터 생성: `src/views/menu.js` `renderPreview()` — 현재 `createCharacterSVG(faceId,hand,...)`.
+
+**생성 프롬프트:** `assets/README.md` "결승 POV / 캐릭터 생성" 표 (povBat/povPitch/charBatter/charPitcher).
+사용자가 본인 Chrome 의 Gemini 로 생성 → `gemini_images/` → 워터마크 제거+WebP(§DEVELOPMENT 5.2) → `assets/img/` → manifest 키.
+
+**진행 순서:**
+1. 프롬프트로 4장 생성 → 가공 → manifest 등록(povBat/povPitch/charBatter/charPitcher).
+2. **정지 교체(1순위, 쉬움)**: createPOVScene/renderPreview 가 에셋 있으면 이미지, 없으면 기존 SVG 폴백(`createImage` 패턴 재사용).
+3. **은은한 모션(CSS)**: 정지 이미지에 keyframe(살짝 줌/흔들림/패럴랙스). 타석 타격 순간엔 짧은 흔들림/플래시.
+4. (선택) **스프라이트 시트**: 타격 폼 등 프레임 여러 장을 한 이미지로 → CSS `steps()` 프레임 애니. 생성·정렬 부담 큼.
+
+**애니메이션 결론:** Gemini=정지만. → (a) 정지+CSS 미세모션 = 권장 1순위(가볍고 즉효), (b) 스프라이트 시트 = 타격 폼용 차순위, (c) 영상생성(Veo 등)=용량·난도↑ 보류.
 
 ## 다음 세션 시작 시 할 일 (우선순위)
-1. **부족 이벤트 컷 생성** (부상/은퇴/강등/FA·트레이드) — 프롬프트 시트(`assets/README.md`)에 추가 후 사용자가 Gemini 로 생성 → `gemini_images/` → §에셋 가공(워터마크 제거+WebP) → manifest 키 추가 → 해당 모달에 `eventCut(키)`.
-   (강등=showDemotionModal, FA=showFreeAgencyModal, 트레이드=showTradeModal, 부상/은퇴=해당 표시 지점)
-2. **BGM**: MusicFX 로 `bgm-menu.mp3`/`bgm-game.mp3` 생성 → `assets/audio/`.
-3. (선택) `tools/gen-assets.mjs` — 본인 PC Playwright persistentContext 자동 생성 스크립트.
-4. (선택) 브라우저로 각 이벤트 컷 실제 표시 확인 (우승/드래프트 등 도달이 길어 상태 주입 필요).
+1. **위 "★ 다음 개발 사항"(결승 POV / 캐릭터 생성 이미지 + 애니메이션) 진행.** ← 메인.
+   - 사용자가 4장(povBat/povPitch/charBatter/charPitcher) 생성해 `gemini_images/` 에 주면 → 가공 → 정지 교체 → CSS 모션.
+2. (선택) 기존 이벤트 컷 14장 브라우저로 실제 표시 확인 (도달이 길어 상태 주입 필요).
+3. (선택) BGM 을 ffmpeg 로 mp3(≈400KB)로 더 경량화.
+4. (선택) `tools/gen-assets.mjs` — 본인 PC Playwright persistentContext 자동 생성 스크립트.
 
 ## 개발 환경 메모 (브라우저 검증)
 - 이 샌드박스 브라우저는 **`ignoreHTTPSErrors:true`** 면 외부 사이트 접근 가능(인증서 가로채기 회피).
