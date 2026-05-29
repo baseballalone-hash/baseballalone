@@ -146,10 +146,12 @@ export function determineMLBStartStage(score) {
 export function kboDraft(player) {
   const score = promotionScore(player);
   let stage = null, round = null, signingBonus = 0;
-  if (score >= 110)      { stage = "pro1"; round = 1; signingBonus = 50000; }
-  else if (score >= 95)  { stage = "pro1"; round = 2; signingBonus = 30000; }
-  else if (score >= 85)  { stage = "pro1"; round = 3; signingBonus = 18000; }
-  else if (score >= 75)  { stage = "pro1"; round = 4 + Math.floor(Math.random() * 2); signingBonus = 10000; }
+  // 현실 반영: KBO 신인은 거의 전원 2군에서 시작, 즉시전력 초특급만 1군 직행.
+  // 2군 입단 후 promotionScore 가 콜업 임계(COLUP_RULES.pro2=85)를 넘으면 자동 승격.
+  if (score >= 120)      { stage = "pro1"; round = 1; signingBonus = 50000; }  // 초특급 즉시전력
+  else if (score >= 105) { stage = "pro1"; round = 2; signingBonus = 30000; }
+  else if (score >= 95)  { stage = "pro2"; round = 1; signingBonus = 18000; }  // 상위 지명 — 곧 콜업 후보
+  else if (score >= 80)  { stage = "pro2"; round = 3 + Math.floor(Math.random() * 2); signingBonus = 10000; }
   else if (score >= 65)  { stage = "pro2"; round = 6 + Math.floor(Math.random() * 3); signingBonus = 5000; }
 
   // calling_card: round 가 좋아짐 (N 칸 감소). 1 라운드가 하한.

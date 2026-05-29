@@ -83,6 +83,26 @@ function isStatNearCap(stat, player) {
   return v >= cap - 0.5;
 }
 
+// 플레이어 평균 대비 이미 앞서가는 스탯인지 — 그러면 자동훈련에서 더 키우지 않음.
+// (예: 경기 경험으로 멘탈만 솟았을 때 멘탈 훈련을 더 고르지 않게 — 균형 잡힌 성장 유도.)
+const AHEAD_MARGIN = 5;
+function statIsAhead(stat, player) {
+  const v = statValue(player, stat);
+  if (v === null) return false;
+  const vals = [...Object.values(player.batter ?? {}), ...Object.values(player.pitcher ?? {})];
+  if (!vals.length) return false;
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  return v >= mean + AHEAD_MARGIN;
+}
+
+// 자동훈련 후보에서 제외할 훈련 — 주 스탯(stats[0])이 cap 근처거나 평균보다 앞서면 스킵.
+function trainingSkipped(trKey, player) {
+  const tr = TRAININGS[trKey];
+  if (!tr || !tr.stats.length) return true;
+  const lead = tr.stats[0];
+  return isStatNearCap(lead, player) || statIsAhead(lead, player);
+}
+
 // 프리셋의 focusStats(없으면 전 stat) 중 가장 낮은 stat 의 훈련 반환.
 // cap 도달 stat 은 제외 — "캡에 닿으면 다른 훈련" 보장.
 function findLowestStatTraining(presetKey, player) {
@@ -95,6 +115,7 @@ function findLowestStatTraining(presetKey, player) {
   for (const trKey of trainings) {
     const t = TRAININGS[trKey];
     if (!t) continue;
+    if (trainingSkipped(trKey, player)) continue;  // 주 스탯이 앞선 훈련은 제외
     for (const s of t.stats) {
       if (statValue(player, s) === null) continue;
       if (focus && !focus.includes(s)) continue;
@@ -147,6 +168,7 @@ export function pickAutoAction(presetKey, player) {
   const boost = effectMultiplier(player, "autoTrainDeficitBoost");
   const entries = Object.entries(preset.weights);
   const adjusted = entries.map(([k, w]) => {
+    if (trainingSkipped(k, player)) return [k, 0];  // 주 스탯이 앞선 훈련은 가중치 0
     const d = deficitFor(k, player) * boost;
     return [k, w * d];
   });
