@@ -39,6 +39,22 @@ export function initAudioUnlock() {
   };
   window.addEventListener("pointerdown", handler);
   window.addEventListener("keydown", handler);
+
+  // 모바일 백그라운드 대응: 화면이 가려지면 BGM 정지(<audio>는 백그라운드에서도
+  // 계속 재생되므로 명시적 pause 필요), 복귀 시 unlock·비음소거면 이어서 재생.
+  // currentBgm 은 유지해 currentTime 부터 이어 재생(stopBgm 과 달리 리셋 안 함).
+  const onHidden = () => {
+    if (currentBgm) { try { currentBgm.el.pause(); } catch (_) {} }
+  };
+  const onVisible = () => {
+    if (currentBgm && unlocked && !isMuted()) currentBgm.el.play().catch(() => {});
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") onHidden();
+    else onVisible();
+  });
+  window.addEventListener("pagehide", onHidden);
+  window.addEventListener("pageshow", onVisible);
 }
 
 // ── 효과음 (Web Audio 합성) ───────────────────────────────────────
