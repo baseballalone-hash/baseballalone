@@ -73,8 +73,10 @@ function getStageRule(stage) {
 //   - walkoffMult: 곱연산 (clutch trait ×2)
 //   - walkoffAddPct: %p 가산 (lucky_bat relic +5%p)
 // opts.handPenalty: 좌/우 매치업 contactDiff 패널티 (같은 손 -3, 그 외 0). 호출자에서 계산.
+// opts.leverage:  고압 상황도(0~1). 투수 mental(클러치) 발동 강도. 0이면 멘탈 무영향.
+// opts.pitcherPA: 현재 등판 투수가 이 타석 전까지 상대한 누적 타자수. 투수 stamina(지구력) 감쇄용.
 function simulateAtBat(batter, pitcher, opts = {}) {
-  const { walkoffMult = 1, walkoffAddPct = 0, handPenalty = 0 } = opts;
+  const { walkoffMult = 1, walkoffAddPct = 0, handPenalty = 0, leverage = 0, pitcherPA = 0 } = opts;
   const b = batter;
   const p = pitcher;
   const contact = (b.contact ?? 50) + handPenalty;  // 같은 손이면 contact 살짝 감쇄
@@ -84,7 +86,21 @@ function simulateAtBat(batter, pitcher, opts = {}) {
   const control  = p.control ?? 50;
   const breaking = p.breaking ?? 50;
 
-  const stuffAvg = (velocity + breaking) / 2;
+  // 투수 stamina(지구력) — 등판 후 누적 타자수가 스태미나 기반 용량을 넘으면 구위·제구 저하.
+  //   capacity: stamina 50=18타자, 100=27, 150=36. 초과분 12타자에 걸쳐 overwork 0→1.
+  //   fatiguePenalty: stuffAvg·control 에서 최대 -12 (지친 투수는 안타·볼넷·사구 ↑).
+  const stamina = p.stamina ?? 50;
+  const capacity = 18 + (stamina - 50) * 0.18;
+  const overwork = clamp((pitcherPA - capacity) / 12, 0, 1);
+  const fatiguePenalty = overwork * 12;
+
+  // 투수 mental(클러치) — 고압 상황(leverage)에서만 위기관리로 작동.
+  //   고멘탈: 안타/홈런/볼넷 억제(침착). 저멘탈: 멘탈붕괴로 실점↑. leverage=0 이면 무영향.
+  const mental = p.mental ?? 50;
+  const mentalEdge = leverage > 0 ? (mental - 50) * leverage : 0;
+
+  const stuffAvg   = (velocity + breaking) / 2 - fatiguePenalty;
+  const effControl = control - fatiguePenalty;
   // 큰 격차일수록 추가 감쇄 — 30 OVR 차이가 비현실적 ERA 폭증 만들던 문제 완화.
   // softDiff(x): |x|>15 부터 점점 평탄화. 30 격차도 효과 18 정도로 묶임.
   function softDiff(x) {
@@ -94,21 +110,23 @@ function simulateAtBat(batter, pitcher, opts = {}) {
     return sign * (15 + (a - 15) * 0.4);
   }
   const contactDiff = softDiff(contact - stuffAvg);
-  const eyeDiff     = softDiff(eye - control);
+  const eyeDiff     = softDiff(eye - effControl);
 
   const r = Math.random() * 100;
 
   // 계수 감쇄 (0.4→0.28, 0.15→0.10, 0.35→0.24, 0.5→0.30) — 실제 야구 매치업 spread (.150 AVG) 에 가깝게.
+  // mentalEdge: 고압 상황에서 고멘탈 투수는 볼넷↓ (clamp 전 가산).
   const kChance = clamp(22 - contactDiff * 0.28 - eyeDiff * 0.10, 5, 38);
-  const bbChance = clamp(9 + eyeDiff * 0.22, 3, 22);
-  const hbpChance = clamp(1.0 - (control - 50) * 0.03, 0.3, 3.0);
+  const bbChance = clamp(9 + eyeDiff * 0.22 - mentalEdge * 0.04, 3, 22);
+  const hbpChance = clamp(1.0 - (effControl - 50) * 0.03, 0.3, 3.0);
 
   if (r < kChance) return { type: "K" };
   if (r < kChance + bbChance) return { type: "BB" };
   if (r < kChance + bbChance + hbpChance) return { type: "HBP" };
 
   // 끝내기 부스트 — clutch ×2 (multiplier) + lucky_bat +5%p (flat). 9회+ 메인 home batter 한정.
-  let inPlayHitChance = clamp(30 + contactDiff * 0.24, 20, 52);
+  // mentalEdge: 고압 상황에서 고멘탈 투수는 인플레이 안타 억제.
+  let inPlayHitChance = clamp(30 + contactDiff * 0.24 - mentalEdge * 0.08, 20, 52);
   if (walkoffMult !== 1 || walkoffAddPct !== 0) {
     inPlayHitChance = clamp(inPlayHitChance * walkoffMult + walkoffAddPct, 20, 95);
   }
@@ -116,7 +134,8 @@ function simulateAtBat(batter, pitcher, opts = {}) {
   if (r2 < inPlayHitChance) {
     const r3 = Math.random() * 100;
     const powerDiff = softDiff(power - velocity);
-    const hrChance = clamp(powerDiff * 0.30 + 4, 1, 18);
+    // mentalEdge: 고압 상황에서 고멘탈 투수는 장타(홈런) 억제.
+    const hrChance = clamp(powerDiff * 0.30 + 4 - mentalEdge * 0.04, 1, 18);
     const tripleChance = 1.5;
     const doubleChance = clamp(powerDiff * 0.22 + 10, 5, 20);
     if (r3 < hrChance) return { type: "HR" };
@@ -740,11 +759,16 @@ function getPstats(mound) {
 function shouldReplacePitcher(mound, inning, leadDiff, isWinning, trigger) {
   const cur = mound.current;
   const s = getPstats(mound);
+  // 강판 임계를 stamina(지구력) 용량에 연동 — 고스태미나 투수는 더 오래 던진다.
+  //   capacity = simulateAtBat 와 동일식. stamina 50 에서 메인 30·NPC 25 (기존값과 일치).
+  const stam = cur.pitcher?.stamina ?? cur.stamina ?? 50;
+  const capacity = 18 + (stam - 50) * 0.18;
   if (cur.isMain) {
-    // 메인 강판 — 후하게. PA 30+ OR 허용 6점+ OR (PA 25+ AND 허용 5점+).
-    if (s.paFaced >= 30) return true;
+    // 메인 강판 — 후하게. PA (capacity+12)+ OR 허용 6점+ OR (PA (capacity+7)+ AND 허용 5점+).
+    const pullPA = Math.round(capacity + 12);
+    if (s.paFaced >= pullPA) return true;
     if (s.runsAllowed >= 6) return true;
-    if (s.paFaced >= 25 && s.runsAllowed >= 5) return true;
+    if (s.paFaced >= pullPA - 5 && s.runsAllowed >= 5) return true;
     return false;
   }
   // NPC 강판
@@ -752,8 +776,8 @@ function shouldReplacePitcher(mound, inning, leadDiff, isWinning, trigger) {
     // 위기 — 1이닝에 5점 이상 줬으면 즉시 강판
     return s.runsAllowed >= 5 && s.paFaced - 0 >= 6;
   }
-  // 이닝 시작 시 일반 강판
-  if (s.paFaced >= 25) return true;
+  // 이닝 시작 시 일반 강판 — PA (capacity+7)+ (stamina 50 → 25).
+  if (s.paFaced >= Math.round(capacity + 7)) return true;
   if (s.runsAllowed >= 6) return true;
   // 7회+ 리드 3점 이내 → 클로저 등판
   if (inning >= 7 && isWinning && leadDiff <= 3 && leadDiff >= 0) {
@@ -884,7 +908,18 @@ function playHalfInning(ls, mound, myBox, myPbox, events,
     const handPenalty = handMatchupPenalty(batter.bats, pitcher.throws);
     const pitchType = pickPitch(pitcher);
 
-    const raw = simulateAtBat(bStats, pStats, { walkoffMult, walkoffAddPct, handPenalty });
+    // 고압 상황도(leverage 0~1) — 투수 mental(클러치) 발동 강도.
+    //   후반(7회+) × 점수 접전 × 득점권 주자. 평상시(초반/큰 점수차)엔 0 → 멘탈 무영향.
+    const scLev = getScores();
+    const margin = Math.abs(scLev.home - scLev.away);
+    const lateness  = clamp((inning - 6) / 3, 0, 1);                  // 7회 0.33 → 9회 1.0
+    const closeness = margin <= 1 ? 1 : margin === 2 ? 0.6 : margin === 3 ? 0.3 : 0;
+    const risp      = (bases[1] || bases[2]) ? 0.25 : 0;             // 득점권 주자 가산
+    const leverage  = clamp(lateness * (closeness + risp), 0, 1);
+    // 현재 등판 투수가 이 타석 전까지 상대한 누적 타자수 — stamina(지구력) 감쇄용.
+    const pitcherPA = getPstats(mound).paFaced;
+
+    const raw = simulateAtBat(bStats, pStats, { walkoffMult, walkoffAddPct, handPenalty, leverage, pitcherPA });
     const resolvedType = raw.type === "OUT"
       ? classifyOut(bStats, bases, outs, defenseRating, { errorMult })
       : raw.type;
