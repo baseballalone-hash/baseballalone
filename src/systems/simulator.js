@@ -82,6 +82,7 @@ function simulateAtBat(batter, pitcher, opts = {}) {
   const contact = (b.contact ?? 50) + handPenalty;  // 같은 손이면 contact 살짝 감쇄
   const power   = b.power ?? 50;
   const eye     = b.eye ?? 50;
+  const speed   = b.speed ?? 50;   // 3루타(주력 의존) 산출용
   const velocity = p.velocity ?? 50;
   const control  = p.control ?? 50;
   const breaking = p.breaking ?? 50;
@@ -114,9 +115,9 @@ function simulateAtBat(batter, pitcher, opts = {}) {
 
   const r = Math.random() * 100;
 
-  // 계수 감쇄 (0.4→0.28, 0.15→0.10, 0.35→0.24, 0.5→0.30) — 실제 야구 매치업 spread (.150 AVG) 에 가깝게.
+  // 계수 감쇄 — 실제 야구 매치업 spread 에 가깝게. (기초타율 보정: kChance 22→21, inPlay 30→33 으로 50v50 AVG ~.250)
   // mentalEdge: 고압 상황에서 고멘탈 투수는 볼넷↓ (clamp 전 가산).
-  const kChance = clamp(22 - contactDiff * 0.28 - eyeDiff * 0.10, 5, 38);
+  const kChance = clamp(21 - contactDiff * 0.28 - eyeDiff * 0.10, 5, 38);
   const bbChance = clamp(9 + eyeDiff * 0.22 - mentalEdge * 0.04, 3, 22);
   const hbpChance = clamp(1.0 - (effControl - 50) * 0.03, 0.3, 3.0);
 
@@ -126,7 +127,7 @@ function simulateAtBat(batter, pitcher, opts = {}) {
 
   // 끝내기 부스트 — clutch ×2 (multiplier) + lucky_bat +5%p (flat). 9회+ 메인 home batter 한정.
   // mentalEdge: 고압 상황에서 고멘탈 투수는 인플레이 안타 억제.
-  let inPlayHitChance = clamp(30 + contactDiff * 0.24 - mentalEdge * 0.08, 20, 52);
+  let inPlayHitChance = clamp(33 + contactDiff * 0.24 - mentalEdge * 0.08, 20, 55);
   if (walkoffMult !== 1 || walkoffAddPct !== 0) {
     inPlayHitChance = clamp(inPlayHitChance * walkoffMult + walkoffAddPct, 20, 95);
   }
@@ -136,7 +137,8 @@ function simulateAtBat(batter, pitcher, opts = {}) {
     const powerDiff = softDiff(power - velocity);
     // mentalEdge: 고압 상황에서 고멘탈 투수는 장타(홈런) 억제.
     const hrChance = clamp(powerDiff * 0.30 + 4 - mentalEdge * 0.04, 1, 18);
-    const tripleChance = 1.5;
+    // 3루타 — 주력 의존(현실에서 가장 발 빠른 타구). 느림 0.5% ~ 빠름 ~4%.
+    const tripleChance = clamp((speed - 50) * 0.04 + 0.9, 0.3, 4);
     const doubleChance = clamp(powerDiff * 0.22 + 10, 5, 20);
     if (r3 < hrChance) return { type: "HR" };
     if (r3 < hrChance + tripleChance) return { type: "3B" };

@@ -2022,7 +2022,11 @@ function renderSeasonEnd(root, route) {
   const h = document.createElement("h2");
   h.style.margin = "0 0 4px";
   h.style.fontSize = "15px";
-  h.textContent = t("weekly.seasonEndTitle", { grade: player.grade });
+  // 고교/대학은 "{grade}학년 시즌 종료", 프로·MLB 는 학년 개념이 없으니 "만N세 시즌 종료" (12학년 오표기 방지).
+  const isAmateurEnd = player.stage === "high" || player.stage === "univ";
+  h.textContent = isAmateurEnd
+    ? t("weekly.seasonEndTitle", { grade: player.grade })
+    : t("weekly.seasonEndTitlePro", { age: player.age });
   headerPanel.appendChild(h);
 
   const s = player.seasonStats;
@@ -3227,6 +3231,8 @@ function autoRunPostseason(ps) {
     // 매 게임마다 roles 새로 굴림 (수동 모달과 일관). round 별 gateType 적용.
     const roles = decideRolesForGame(player, myTeam, { gateType: gateTypeForRound(ps.round) });
     const result = simulatePostseasonGame(player, league, ps.opponent, ps.stage, roles);
+    // 무승부(연장 후 동점) — 시리즈는 승부가 나야 하므로 미집계하고 재경기. (무승부가 상대 승으로 잡히던 버그 방지)
+    if (!result || result.winner == null) continue;
     if (result?.mainPlayer && (result.mainPlayer.roles?.bat || result.mainPlayer.roles?.pitch)) {
       mergeSeasonStats(player, result.mainPlayer);
       applyGameExperience(player, result.mainPlayer);

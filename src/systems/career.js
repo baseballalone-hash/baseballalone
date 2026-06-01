@@ -82,6 +82,13 @@ export function transitionAfterSeason() {
     return { ended: false, demoted: true, fromStage, toStage: demotion };
   }
 
+  // 강제 은퇴(방출) — 최하위 단계 평균 이하 또는 연령 한계. 콜업/강등이 아닐 때만 도달.
+  if (checkForcedRetirement(player)) {
+    state.career = { ended: true, reason: "forcedRetire" };
+    pushLog({ msg: t("log.forcedRetire"), kind: "bad" });
+    return { ended: true, forcedRetire: true };
+  }
+
   // 다음 학년 시작 — 캘린더도 3월 1일로 리셋 (year +1)
   resetGameDateForNewSeason(state.gameDate);
   // NPC 풀 carry-over: 나이 +1, 성장/노화, 졸업/은퇴, 신인 합류
@@ -159,7 +166,9 @@ export const MLB_POSTING_SEASONS = 7;
 export const MLB_FA_SEASONS = 9;
 export function checkMLBChallenge(player) {
   if (!player || player.stage !== "pro1") return null;
-  const seasons = player.kboSeasons ?? 0;
+  // +1: 방금 끝난 시즌은 휴식기 후 advanceToNextSeason 에서 kboSeasons 에 더해진다. 이 체크는 그 전에
+  // 일어나므로 방금 끝난 시즌을 포함해 판정(7시즌째 휴식기에 포스팅, 9시즌째에 해외FA).
+  const seasons = (player.kboSeasons ?? 0) + 1;
   let type = null;
   if (seasons >= MLB_FA_SEASONS) type = "fa";
   else if (seasons >= MLB_POSTING_SEASONS) type = "posting";
@@ -303,7 +312,9 @@ function pickTeamForStage(pool, player) {
 // 휴식기 직전 weekly.js 가 호출해 state.pendingFA 세팅.
 export function checkFreeAgency(player) {
   if (!player.contract) return null;
-  if (player.contract.yearsLeft > 0) return null;
+  // 휴식기 진입(이 체크) 후 advanceToNextSeason 에서 yearsLeft 가 1 줄어든다. 즉 방금 끝난 시즌이
+  // 계약 마지막 해(yearsLeft===1)면 이번 휴식기에 FA. (예전 ===0 은 +1시즌 늦게 발동하던 버그.)
+  if (player.contract.yearsLeft > 1) return null;
   if (player.stage === "high" || player.stage === "univ" || player.stage === "retire") return null;
   const score = compositeScore(player);
   // FA 오퍼: compositeScore + fame 으로 결정. 점수 낮으면 잔류 권장 (오퍼 없음).
@@ -322,14 +333,18 @@ export function checkFreeAgency(player) {
 // FA 결정 적용 — stay: 같은 팀 4년 재계약 / leave: 새 팀 4년 계약.
 // 새 팀은 같은 stage 의 다른 팀. 명성/계약금 보너스도 같이 부여.
 export function applyFreeAgencyDecision(player, decision, newTeamName = null) {
+  // _faJustResolved: 이번 휴식기에 새로 4년 계약을 맺었으니, 같은 휴식기의 advanceToNextSeason
+  // 에서 yearsLeft 를 깎지 않게 한다(재계약이 즉시 3년으로 줄던 버그 방지). advanceToNextSeason 에서 소비·해제.
   if (decision === "stay") {
     player.contract = { yearsLeft: 4 };
+    player._faJustResolved = true;
     addFame(player, 5);  // 잔류 — 작은 명성 보너스
     return { stayed: true, teamName: player.teamName };
   }
   // leave — 새 팀 이적
   player.teamName = newTeamName ?? player.teamName;
   player.contract = { yearsLeft: 4 };
+  player._faJustResolved = true;
   addFame(player, 12);  // 이적 — 큰 명성 보너스
   // 새 팀으로 league 재구성. 메인 stage 동일.
   state.league = createLeague(player.stage, player.teamName);
@@ -389,6 +404,18 @@ export function checkDemotion(player) {
   const rule = DEMOTION_LADDER[player.stage];
   if (!rule) return null;
   return nationalTeamRating(player) < rule.minKeep ? rule.down : null;
+}
+
+// 강제 은퇴(방출) — 최하위 단계(pro2/mlb_a)에서 그 단계 평균 이하면 더 받아줄 팀이 없어 은퇴.
+//   2군(pro2) 평균 ~107(102~112 궤적) → 100 미만이면 방출. mlb_a 는 마이너 스케일로 105.
+//   + 연령 한계: 만 41세 이상은 기량과 무관히 현역 마감(NPC 도 40 전후 은퇴).
+const FORCED_RETIRE_FLOOR = { pro2: 100, mlb_a: 105 };
+export function checkForcedRetirement(player) {
+  if (!player) return false;
+  if (player.stage === "high" || player.stage === "univ" || player.stage === "retire") return false;
+  if ((player.age ?? 0) >= 41) return true;
+  const floor = FORCED_RETIRE_FLOOR[player.stage];
+  return floor != null && nationalTeamRating(player) < floor;
 }
 
 export function checkPromotion(player) {

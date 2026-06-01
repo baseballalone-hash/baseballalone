@@ -29,6 +29,7 @@ export const en = {
     returnToMenu: "Back to Menu",
     cancel: "Cancel",
     confirm: "OK",
+    close: "Close",
   },
 
   stage: {
@@ -794,6 +795,7 @@ export const en = {
     trainingCritical: "{label} — critical! 2x effect",
     stageTransition: "Signed with {team} ({stage})!",
     retired: "Retired from baseball.",
+    forcedRetire: "Released with no team willing to sign — career over.",
     promoted: "Called up to {team} ({stage})!",
     demoted: "Demoted to {team} ({stage})...",
   },
@@ -901,6 +903,7 @@ export const en = {
     standingsTitle: "Standings",
     seasonStatsTitle: "Season Stats",
     seasonEndTitle: "Year {grade} Season Ended",
+    seasonEndTitlePro: "Season Ended (age {age})",
     careerHigh: "Career High",
     autoModeIndicator: "Training: {label}",
     noGamesYet: "No games yet",

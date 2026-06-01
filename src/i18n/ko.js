@@ -29,6 +29,7 @@ export const ko = {
     returnToMenu: "메인 메뉴로",
     cancel: "취소",
     confirm: "확인",
+    close: "닫기",
   },
 
   stage: {
@@ -798,6 +799,7 @@ export const ko = {
     trainingCritical: "{label} 대성공! 효과 2배",
     stageTransition: "{stage} {team} 입단!",
     retired: "야구 인생을 마감합니다.",
+    forcedRetire: "더 이상 받아주는 팀이 없어 방출 — 현역 은퇴.",
     promoted: "{stage} {team} 콜업!",
     demoted: "{stage} {team}(으)로 강등...",
   },
@@ -905,6 +907,7 @@ export const ko = {
     standingsTitle: "리그 순위",
     seasonStatsTitle: "시즌 성적",
     seasonEndTitle: "{grade}학년 시즌 종료",
+    seasonEndTitlePro: "만{age}세 시즌 종료",
     careerHigh: "커리어 하이",
     autoModeIndicator: "현재 훈련: {label}",
     noGamesYet: "아직 경기가 없습니다",

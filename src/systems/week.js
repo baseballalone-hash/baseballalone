@@ -234,8 +234,11 @@ export function advanceToNextSeason() {
     player.kboSeasons = (player.kboSeasons ?? 0) + 1;
   }
   ageUp(player);
-  // 계약 연차 감소 (프로/MLB 단계만). 0 도달 시 transitionAfterSeason 다음 endWeek 에서 FA 모달.
-  if (player.contract && player.contract.yearsLeft > 0) {
+  // 계약 연차 감소 (프로/MLB 단계만). 단, 이번 휴식기에 FA 로 막 재계약했으면(_faJustResolved) 깎지 않음
+  // (재계약 4년이 같은 휴식기에 3년으로 줄던 버그 방지). 다음 시즌부터 정상 감소.
+  if (player._faJustResolved) {
+    delete player._faJustResolved;
+  } else if (player.contract && player.contract.yearsLeft > 0) {
     player.contract.yearsLeft -= 1;
   }
   return { stage: player.stage, grade: player.grade };

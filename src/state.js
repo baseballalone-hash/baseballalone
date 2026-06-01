@@ -49,6 +49,7 @@ export function saveGame() {
       career: state.career,
       log: state.log.slice(0, 30),    // 옛 50 → 30 절약
       autoMode: state.autoMode,
+      trainSwitchAcked: state.trainSwitchAcked,
       paused: state.paused,
       tickSpeed: state.tickSpeed,
       gameDate: state.gameDate,
@@ -96,6 +97,7 @@ export function saveGame() {
           saveVersion: SAVE_VERSION, lastSaved: Date.now(),
           player: state.player, league: state.league, season: state.season,
           career: state.career, log: state.log, autoMode: state.autoMode,
+          trainSwitchAcked: state.trainSwitchAcked,
           paused: state.paused, tickSpeed: state.tickSpeed, gameDate: state.gameDate,
           offseason: state.offseason, pendingFinal: state.pendingFinal,
           pendingPostseason: state.pendingPostseason, pendingEvents: state.pendingEvents,
@@ -197,6 +199,7 @@ export function resetState() {
   state.log = [];
   state.view = "menu";
   state.autoMode = null;
+  state.trainSwitchAcked = false;   // 훈련방향 cap 안내 확인 플래그 — 새 캐릭터마다 초기화
   state.paused = true;
   state.tickSpeed = 500;
   state.gameDate = null;

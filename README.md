@@ -489,6 +489,22 @@ KBO에서 MLB로 가는 경로가 없던 것 → 실제 규정 모델로 추가.
 | **자격 판정** | `career.checkMLBChallenge` — pro1(1군)에서 **9시즌+ 해외FA**(자유계약) / **7~8시즌 포스팅**(구단 동의는 단순화). 관심 구단은 `getMLBOffers`(실력 기반) — 저실력이면 오퍼 없음. |
 | **흐름/UI** | 휴식기 진입 분기(FA 앞)에서 도전 모달(`showMLBChallengeModal`). 팀 수락 시 `confirm` 후 `advanceToNextSeason`→`transitionToStage(determineMLBStartStage…)` 로 MLB 이적. 거절 시 기존 FA/트레이드/휴식기 흐름. i18n `mlbChallenge.*`(ko/en). |
 
+### v0.7.10 fix ✓ — 전체 감사(4영역 병렬) 후 버그 9건 수정
+
+| # | 수정 |
+|---|---|
+| 1 | `common.close` i18n 키 누락 → 결승 리플레이 닫기 버튼이 "common.close" 표시되던 것. (ko/en 추가) |
+| 2 | 시즌 종료 타이틀이 프로/MLB도 "{grade}학년" → `seasonEndTitlePro`(만N세)로 분기(12학년 오표기). |
+| 3 | `trainSwitchAcked` resetState 미초기화(새 캐릭터에 stale) + 저장/로드 누락 → 초기화·영속화. |
+| 4 | 포스트시즌 무승부(연장후 동점)가 상대 시리즈 승으로 집계 → 무승부는 미집계·재경기(`autoRunPostseason`). |
+| 5 | 주력(speed)이 장타에 무영향 → 3루타율을 speed 연동(`tripleChance` 느림0.07%~빠름0.83%). |
+| 6 | **강제 은퇴 추가** — 최하위(pro2/mlb_a) 평균 이하(pro2<100) 또는 만 41세+ → 방출/은퇴(`checkForcedRetirement`). |
+| 7 | FA·포스팅 +1시즌 늦게 발동 → `checkFreeAgency` yearsLeft≤1, 재계약 `_faJustResolved`로 즉시 감소 방지, `checkMLBChallenge` 방금시즌 포함(+1). 4년 계약=4시즌, 포스팅7/FA9 정확. |
+| 8 | 군 복무 2년이 KBO 서비스 미반영 → `kboSeasons += 2`(상무=퓨처스 인정). |
+| 9 | 50v50 기초타율 .227→.253(kChance 22→21, inPlay 30→33). Monte Carlo 30만 검증. |
+
+검증: 8개 파일 `node --check`, `probe.mjs`/`probe-career.mjs` 통과, 강제은퇴·FA타이밍·타율·3루타 Node 재현 확인. (거짓양성 1건 — IP/ERA `ipOuts` vs `ip` 는 둘 다 동기 저장돼 정상 — 은 제외.)
+
 **자동 검증** (회귀·밸런스): `node probe.mjs` + `node probe-career.mjs` — 실행 방법 §시뮬레이션 돌려보기 참고.
 
 **수동 시나리오** (브라우저 UX 확인):
