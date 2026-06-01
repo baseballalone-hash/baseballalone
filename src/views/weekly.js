@@ -2176,6 +2176,7 @@ function showFreeAgencyModal(fa, route, onClose) {
   stayBtn.textContent = t("fa.btnStay", { team: state.player.teamName });
   stayBtn.addEventListener("pointerdown", e => {
     e.preventDefault();
+    if (!confirm(t("fa.confirmStay", { team: state.player.teamName }))) return;
     applyFreeAgencyDecision(state.player, "stay");
     pushToast(t("fa.stayResult", { team: state.player.teamName }), "good");
     finish();
@@ -2195,6 +2196,7 @@ function showFreeAgencyModal(fa, route, onClose) {
       btn.textContent = t("fa.btnLeave", { team: offer.name });
       btn.addEventListener("pointerdown", e => {
         e.preventDefault();
+        if (!confirm(t("fa.confirmLeave", { team: offer.name }))) return;
         const res = applyFreeAgencyDecision(state.player, "leave", offer.name);
         pushToast(t("fa.leaveResult", { team: res.teamName }), "good");
         finish();
@@ -2254,6 +2256,7 @@ function showTradeModal(trade, route, onClose) {
   acceptBtn.textContent = t("trade.btnAccept", { team: trade.fromTeam });
   acceptBtn.addEventListener("pointerdown", e => {
     e.preventDefault();
+    if (!confirm(t("trade.confirmAccept", { team: trade.fromTeam }))) return;
     applyTradeAccept(state.player, trade.fromTeam);
     pushToast(t("trade.acceptResult", { team: trade.fromTeam }), "good");
     finish();
@@ -3045,7 +3048,11 @@ function openMLBOfferModal(offers, onChoose) {
     const btn = document.createElement("button");
     btn.style.cssText = "display:block; width:100%; padding:10px; margin-bottom:6px; text-align:left; background:var(--panel-2); border:1px solid var(--accent); color:inherit; font-family:inherit; cursor:pointer; border-radius:6px;";
     btn.innerHTML = `<div style="font-weight:700; color:var(--accent); font-size:13px">${team.name}</div><div style="font-size:10px; color:var(--muted); margin-top:2px">${t("careerPath.teamStrength", { strength: team.strength })}</div>`;
-    btn.addEventListener("pointerdown", e => { e.preventDefault(); pick(team); });
+    btn.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (!confirm(t("careerPath.confirmMlb", { team: team.name }))) return;
+      pick(team);
+    });
     dialog.appendChild(btn);
   }
 
