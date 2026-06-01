@@ -96,13 +96,15 @@ export function endWeek() {
   for (const g of games) {
     const r = simulateGame(league, g, player);
     results.push(r);
-    // 투수 등판 휴식 카운터 (출장 여부와 무관하게 매 경기 진행)
-    if (r.mainPlayer?.roles?.pitch) {
-      player.gamesSinceLastPitch = 0;
-    } else {
-      player.gamesSinceLastPitch = (player.gamesSinceLastPitch ?? 99) + 1;
-    }
+    // 휴식 카운터는 **메인이 실제 출전한 경기에서만** 갱신한다.
+    // (예전엔 그 주 리그 전체 경기 — 메인이 안 뛴 다른 팀 경기 — 마다도 ++ 해서 카운터가 폭증 →
+    //  등판확률이 항상 100% 가 되어 한 시즌 60+등판/500+이닝, 통산 수천 이닝으로 부풀던 버그.)
     if (r.mainPlayer && (r.mainPlayer.roles?.bat || r.mainPlayer.roles?.pitch)) {
+      if (r.mainPlayer.roles?.pitch) {
+        player.gamesSinceLastPitch = 0;
+      } else {
+        player.gamesSinceLastPitch = (player.gamesSinceLastPitch ?? 99) + 1;
+      }
       mergeSeasonStats(player, r.mainPlayer);
       applyGameExperience(player, r.mainPlayer);
       player.seasonStats.games++;

@@ -406,16 +406,19 @@ export function checkDemotion(player) {
   return nationalTeamRating(player) < rule.minKeep ? rule.down : null;
 }
 
-// 강제 은퇴(방출) — 최하위 단계(pro2/mlb_a)에서 그 단계 평균 이하면 더 받아줄 팀이 없어 은퇴.
-//   2군(pro2) 평균 ~107(102~112 궤적) → 100 미만이면 방출. mlb_a 는 마이너 스케일로 105.
+// 강제 은퇴(방출) — 최하위 단계(pro2/mlb_a)에서 노쇠로 기량이 떨어진 베테랑이 더 받아줄 팀이 없어 은퇴.
+//   ★ 어린 유망주(2군에서 성장 중)는 제외 — 만 34세 이상 + 해당 단계 floor 미만일 때만.
+//     (예전엔 age 게이트가 없어 만 21세 신예도 평균 이하라며 방출되던 버그.)
 //   + 연령 한계: 만 41세 이상은 기량과 무관히 현역 마감(NPC 도 40 전후 은퇴).
-const FORCED_RETIRE_FLOOR = { pro2: 100, mlb_a: 105 };
+const FORCED_RETIRE_FLOOR = { pro2: 90, mlb_a: 100 };
+const FORCED_RETIRE_MIN_AGE = 34;
 export function checkForcedRetirement(player) {
   if (!player) return false;
   if (player.stage === "high" || player.stage === "univ" || player.stage === "retire") return false;
-  if ((player.age ?? 0) >= 41) return true;
+  const age = player.age ?? 0;
+  if (age >= 41) return true;
   const floor = FORCED_RETIRE_FLOOR[player.stage];
-  return floor != null && nationalTeamRating(player) < floor;
+  return floor != null && age >= FORCED_RETIRE_MIN_AGE && nationalTeamRating(player) < floor;
 }
 
 export function checkPromotion(player) {
