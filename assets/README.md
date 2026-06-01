@@ -42,14 +42,28 @@
 | event-trade (eventTrade) | 트레이드 | `A Korean baseball player carrying a duffel bag over his shoulder, glancing back at his old stadium while wearing a new team's cap, moving-on mood, overcast evening sky` |
 
 ### 🔲 결승 POV / 캐릭터 생성 (TODO — 아직 미생성, 이것만 생성)
-| 파일(→키) | 장면 | 프롬프트 (앞부분 + 공통 접미) |
-|---|---|---|
-| pov-bat (povBat) | 타석 POV | `First-person batter's box point of view in a baseball stadium, pitcher winding up on the mound ahead, catcher and umpire framing, tense at-bat moment` |
-| pov-pitch (povPitch) | 마운드 POV | `First-person pitcher's mound point of view, looking toward home plate, batter set in the box and catcher giving signs, stadium crowd behind` |
-| char-batter (charBatter) | 생성-타자 | `Full-body Korean baseball player in batting stance with bat, clean studio background, character select pose, confident` |
-| char-pitcher (charPitcher) | 생성-투수 | `Full-body Korean baseball player in pitching wind-up pose, clean studio background, character select pose` |
 
-> 애니메이션: Gemini는 정지뿐. 1순위 = 정지 이미지 + CSS 미세 모션(줌/흔들림). 타격 폼은 스프라이트 시트(프레임 여러 장 → CSS steps()) 검토. 상세는 `.claude/handoff.md`.
+> ⚠️ **이 4장은 위 "공통 스타일 접미"의 `portrait 9:16` 을 쓰지 않는다.** 코드상 비율이 다르다:
+> - **POV 2장**: `src/render/finalAnim.js` 씬이 viewBox **320×220 (가로 ≈3:2)**. → **landscape 3:2** 로 생성.
+>   공(ball)·스트라이크존이 **이미지 위에 오버레이로 그려지므로**, 투수↔홈플레이트를 잇는 **화면 중앙 세로 라인은
+>   비교적 비워둘 것**(인물·텍스트로 가리지 말 것). 정중앙 대칭 구도.
+> - **캐릭터 2장**: `src/render/character.js` 기본 180×240 = **세로 3:4 전신**. → **portrait 3:4** 로 생성.
+>   머리(모자)~발(스파이크)까지 전신 + 약간의 헤드룸, 배경은 균일한 무지/그라데이션(누끼 따기 쉽게).
+>
+> **공통 스타일 접미(이 4장용, 위 9:16 대신 사용):**
+> `anime/manga style illustration, cel-shaded, vibrant colors, dramatic cinematic lighting, detailed background, high quality, no text, no watermark, no UI, no logos`
+> **Negative(피할 것):** `text, watermark, letters, scoreboard numbers, blurry mush, extra limbs, cluttered center, multiple overlapping players blocking the center`
+
+| 파일(→키) | 장면 / 비율 | 프롬프트 (앞부분 + 위 공통 접미) |
+|---|---|---|
+| pov-bat (povBat) | 타석 POV / **3:2 가로** | `First-person point of view from inside the batter's box at a packed night baseball stadium, looking out over home plate toward the pitcher's mound straight ahead, the pitcher mid wind-up about to throw. A blurred catcher's mitt and umpire frame the lower edge, floodlit green grass, dirt base paths and a glowing crowd in the background, shallow depth of field with the mound in sharp focus, centered symmetrical composition with the central lane toward the pitcher kept open and uncluttered, tense decisive at-bat atmosphere` |
+| pov-pitch (povPitch) | 마운드 POV / **3:2 가로** | `First-person point of view standing on the pitcher's mound at a night baseball stadium, looking down the lane toward home plate ahead where a batter is set in the box with the catcher crouched giving signs and the umpire behind, infield dirt and foul lines and a packed glowing grandstand filling the background, shallow depth of field, centered symmetrical composition with the lane toward home plate kept open and uncluttered, intense focused closing-pitch mood` |
+| char-batter (charBatter) | 생성-타자 / **3:4 세로** | `Full-body portrait of a young Korean baseball position player in a clean white home uniform and batting helmet, confident batting stance holding a wooden bat resting on the shoulder, facing the viewer at a slight three-quarter angle, full body from cap to cleats with a little headroom, neutral seamless soft-gradient studio background, even rim lighting, character-select roster-card pose, centered, heroic confident expression` |
+| char-pitcher (charPitcher) | 생성-투수 / **3:4 세로** | `Full-body portrait of a young Korean baseball pitcher in a clean uniform and cap, dynamic wind-up pose with the glove raised at the chest and front leg lifted, facing the viewer at a slight three-quarter angle, full body with a little headroom, neutral seamless soft-gradient studio background, even rim lighting, character-select roster-card pose, centered, focused determined expression` |
+
+> **생성 팁:** 한 키당 2~3장 뽑아 가장 중앙이 깨끗하고 톤이 기존 14장과 맞는 것을 고른다.
+> 캐릭터는 좌/우타·얼굴 변형이 코드(`createCharacterSVG(faceId,hand)`)로 처리되므로, 일러스트는 **대표 1장이면 충분**(파라메트릭 SVG가 폴백·변형 담당).
+> 애니메이션: Gemini는 정지뿐. 1순위 = 정지 이미지 + CSS 미세 모션(줌/흔들림/패럴랙스), 타격 순간 짧은 흔들림/플래시. 타격 폼은 스프라이트 시트(프레임 여러 장 → CSS steps()) 검토. 상세는 `.claude/handoff.md`.
 
 ### ✅ BGM (완료 — 재생성 금지, 기록용)
 | 파일 | 프롬프트 |
