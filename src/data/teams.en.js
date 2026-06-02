@@ -17,17 +17,18 @@ export const HIGH_SCHOOL_TEAMS_EN = [
   { name: "Hoover HS",     region: "Sunridge",   strength: 46 },
 ];
 
+// 국내리그 팀 — 지명 없이 닉네임만 (요청: "타이거즈/트윈스" 식, 지명 미표기).
 export const PRO_TEAMS_EN = [
-  { name: "Seattle Pioneers",    region: "Seattle",     strength: 78 },
-  { name: "Houston Outlaws",     region: "Houston",     strength: 75 },
-  { name: "Denver Stallions",    region: "Denver",      strength: 73 },
-  { name: "Atlanta Thunder",     region: "Atlanta",     strength: 71 },
-  { name: "Miami Wave",          region: "Miami",       strength: 70 },
-  { name: "Brooklyn Bandits",    region: "New York",    strength: 76 },
-  { name: "Phoenix Sun",         region: "Phoenix",     strength: 68 },
-  { name: "Detroit Foxes",       region: "Detroit",     strength: 72 },
-  { name: "Minneapolis Frost",   region: "Minneapolis", strength: 69 },
-  { name: "Chicago Bulldogs",    region: "Chicago",     strength: 67 },
+  { name: "Pioneers",  region: "Seattle",     strength: 78 },
+  { name: "Outlaws",   region: "Houston",     strength: 75 },
+  { name: "Stallions", region: "Denver",      strength: 73 },
+  { name: "Thunder",   region: "Atlanta",     strength: 71 },
+  { name: "Wave",      region: "Miami",       strength: 70 },
+  { name: "Bandits",   region: "New York",    strength: 76 },
+  { name: "Suns",      region: "Phoenix",     strength: 68 },
+  { name: "Foxes",     region: "Detroit",     strength: 72 },
+  { name: "Frost",     region: "Minneapolis", strength: 69 },
+  { name: "Bulldogs",  region: "Chicago",     strength: 67 },
 ];
 
 export const UNIV_TEAMS_EN = [

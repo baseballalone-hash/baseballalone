@@ -35,8 +35,8 @@ export const en = {
   stage: {
     high:    "High School",
     univ:    "College",
-    pro2:    "KBO Futures",
-    pro1:    "KBO",
+    pro2:    "Minor League",
+    pro1:    "Domestic League",
     mlb:     "MLB",
     mlb_aaa: "AAA",
     mlb_aa:  "AA",
@@ -46,8 +46,8 @@ export const en = {
 
   // Short stage label for player card title ({team} {stageShort})
   stageShort: {
-    pro2:    "Futures",
-    pro1:    "KBO",
+    pro2:    "Minors",
+    pro1:    "Pro",
     mlb:     "Majors",
     mlb_aaa: "AAA",
     mlb_aa:  "AA",
@@ -284,9 +284,9 @@ export const en = {
       // ── International tournament (intl_tournament) ──
       olympic_run: {
         label: "Olympic Baseball",
-        desc:  "Selected for the Olympic team. A bronze medal or better earns military exemption.",
-        great: "Gold medal! Top of the podium. Military service exempted!",
-        ok:    "Bronze medal! Earned a spot on the podium and military exemption.",
+        desc:  "Selected for the Olympic team. Compete for a medal on the world stage.",
+        great: "Gold medal! Top of the podium!",
+        ok:    "Reached the podium — a medal for your country.",
         bad:   "Missed the medal stand…",
       },
       asian_games_run: {
@@ -331,7 +331,7 @@ export const en = {
     kbo_wc:  "Wild Card Round",
     kbo_spo: "Semi-Playoff",
     kbo_po:  "Playoffs",
-    kbo_ks:  "Korean Series",
+    kbo_ks:  "Championship Series",
     // MLB postseason
     mlb_wc: "Wild Card Series",
     mlb_ds: "Division Series",
@@ -387,7 +387,7 @@ export const en = {
       wc:  "Wild Card",
       spo: "Semi-Playoff",
       po:  "Playoffs",
-      ks:  "Korean Series",
+      ks:  "Championship Series",
       ds:  "Division Series",
       cs:  "League Championship",
       ws:  "World Series",
@@ -424,10 +424,10 @@ export const en = {
   // KBO→MLB challenge — weekly.js (posting 7 seasons / intl FA 9 seasons)
   mlbChallenge: {
     title:       "MLB Opportunity",
-    descPosting: "After {seasons} KBO seasons you're posting-eligible. Your club agreed to post you and some MLB clubs are interested. Take the leap?",
-    descFa:      "After {seasons} KBO seasons you're an international free agent. You can sign with an MLB club freely.",
-    confirm:     "Confirm signing with {team}? (Leave KBO for MLB)",
-    reject:      "Decline — stay in KBO",
+    descPosting: "After {seasons} domestic seasons you're posting-eligible. Your club agreed to post you and some MLB clubs are interested. Take the leap?",
+    descFa:      "After {seasons} domestic seasons you're an international free agent. You can sign with an MLB club freely.",
+    confirm:     "Confirm signing with {team}? (Leave for MLB)",
+    reject:      "Decline — stay in the domestic league",
   },
 
   // Training review — weekly.js (top-weight stat hit cap)
@@ -666,8 +666,8 @@ export const en = {
     wbcAnnounceDesc:     "Selected for the WBC! Facing the world's best.",
     wbcReward:           "Reward — Fame +15, all stats +1, Mental +3",
     olympicsTitle:       "Olympic Baseball",
-    olympicsAnnounceDesc:"Olympic team call-up! Bronze or higher grants military exemption.",
-    olympicsReward:      "Reward — Fame +20, all stats +2, Mental +4 (medal exempts service)",
+    olympicsAnnounceDesc:"Olympic team call-up! Compete for a medal on the world stage.",
+    olympicsReward:      "Reward — appearance fame (medal decided at season's end).",
     asian_gamesTitle:    "Asian Games Baseball",
     asian_gamesAnnounceDesc: "Asian Games call-up! Gold medal grants military exemption.",
     asian_gamesReward:   "Reward — Fame +12, all stats +1, Mental +3 (gold exempts service)",
@@ -827,7 +827,7 @@ export const en = {
     desc: "Graduation is here. Pick your next stage.",
     univLabel:   "College",
     univDesc:    "Four years of college ball.",
-    kboLabel:    "KBO Draft",
+    kboLabel:    "Pro Draft",
     kboDesc:     "Drafted to top or farm league based on stats. May go undrafted.",
     mlbLabel:    "MLB",
     mlbDesc:     "Requires an offer.",
@@ -840,7 +840,7 @@ export const en = {
 
     mlbOfferTitle: "MLB Offers",
     mlbOfferDesc:  "These teams are interested. Pick one or decline.",
-    mlbReject:     "Decline (KBO Draft)",
+    mlbReject:     "Decline (Pro Draft)",
     confirmMlb:    "Confirm signing with {team}?",
     teamStrength:  "Team strength: {strength}",
 
@@ -848,8 +848,8 @@ export const en = {
     draftUndrafted: "Undrafted — career ends.",
 
     // Live draft modal
-    draftTitle:        "KBO Rookie Draft",
-    draftAnnounceDesc: "The KBO Rookie Draft is about to begin.",
+    draftTitle:        "Pro Rookie Draft",
+    draftAnnounceDesc: "The Pro Rookie Draft is about to begin.",
     draftStartBtn:     "Start Draft",
     draftRoundLine:    "R{round} · {team}: {name}",
     draftMyPickLine:   "R{round} · {team}: YOU are drafted!",
@@ -951,8 +951,8 @@ export const en = {
     leagueGroup: {
       high:     "High School",
       univ:     "College",
-      kbo1:     "KBO",
-      kbo2:     "KBO Minors",
+      kbo1:     "Domestic",
+      kbo2:     "Domestic Minors",
       mlbMajor: "MLB",
       mlbMinor: "MLB Minors",
     },

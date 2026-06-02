@@ -10,7 +10,7 @@
 // 결과 굴림(great/ok) 시 player.militaryExempt = { reason, year } 부여.
 
 import { state, pushLog, pushToast } from "../state.js";
-import { t } from "../i18n/index.js";
+import { t, getLocale } from "../i18n/index.js";
 import { BATTER_STATS, PITCHER_STATS, getPlayerStatCap, addFame } from "./player.js";
 
 const MILITARY_AGE = 27;
@@ -41,6 +41,8 @@ export const MILITARY_OPTIONS = {
 // 면제 자격이 있으면 여기서 즉시 자동 처리하고 false 반환.
 export function checkMilitaryTrigger(player) {
   if (!player) return false;
+  // 영어 버전은 한국 특화 요소(병역) 제거 — 군 복무 트리거 없음.
+  if (getLocale() === "en") return false;
   if (player.militaryDone) return false;
   if (player.age < MILITARY_AGE) return false;
   if (player.stage !== "pro1" && player.stage !== "pro2") return false;

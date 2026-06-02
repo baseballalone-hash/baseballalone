@@ -17,7 +17,7 @@
 // 같은 이벤트 중복 발동 방지: player.processedEvents[year-key] = true.
 
 import { state, pushToast } from "../state.js";
-import { t } from "../i18n/index.js";
+import { t, getLocale } from "../i18n/index.js";
 import { BATTER_STATS, PITCHER_STATS, getPlayerStatCap, addFame, nationalTeamRating } from "./player.js";
 import { simulateGame } from "./simulator.js";
 import { createRoster } from "./npc.js";
@@ -122,7 +122,9 @@ export const SEASON_EVENTS = [
     handlerKey: "intlTournamentLive",
     canReplaceOffseason: true,
     trigger(player, gameDate) {
-      return player.stage === "pro1"
+      // 영어 버전은 아시안게임 제외 (한국/아시아 특화).
+      return getLocale() !== "en"
+        && player.stage === "pro1"
         && gameDate.month === 9
         && gameDate.dayOfMonth <= 14
         && gameDate.year % 4 === 2
@@ -159,9 +161,10 @@ export function checkOffseasonEvents(player, year) {
   player.processedEvents = player.processedEvents ?? {};
   if (!state.pendingEvents) state.pendingEvents = [];
 
-  // 아시안게임 — KBO 1군 + year %4==2 + fame 50+. seasonEvents 의 시즌 중 trigger 조건과 일관.
+  // 아시안게임 — KBO 1군 + year %4==2 + fame 50+. 영어 버전은 제외.
   const agKey = `${year}-asian_games`;
-  if (!player.processedEvents[agKey]
+  if (getLocale() !== "en"
+      && !player.processedEvents[agKey]
       && year % 4 === 2
       && player.stage === "pro1"
       && nationalTeamRating(player) >= SELECT_RATING.asian_games) {

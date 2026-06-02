@@ -575,6 +575,19 @@ KBO에서 MLB로 가는 경로가 없던 것 → 실제 규정 모델로 추가.
 
 검증: `node --check` 4파일 통과. UI/실기 확인 대기.
 
+### v0.7.17 추가 ✓ — 영어 버전 일반화 (KBO·군대·아시안게임·팀명)
+
+영어(`getLocale()==="en"`)에서 한국 특화 요소 제거. 한국어 모드는 그대로 유지.
+
+| 영역 | 작업 |
+|---|---|
+| **군 복무 제거(영어)** (`military.js`) | `checkMilitaryTrigger` 가 영어면 `false` 반환 — 군 입대 모달·2시즌 페널티 없음. |
+| **아시안게임 제거(영어)** (`seasonEvents.js`) | 아시안게임 SEASON_EVENT trigger + `checkOffseasonEvents` 적재를 영어면 skip. 올림픽/WBC/프리미어12(글로벌)는 유지. |
+| **KBO→국내리그(영어)** (`en.js`) | `stage.pro1` "KBO"→"Domestic League", `pro2`→"Minor League", `stageShort.pro1`→"Pro". `leagueGroup` kbo1→"Domestic"/kbo2→"Domestic Minors". `kbo_ks`·postseason `ks` "Korean Series"→"Championship Series". MLB 도전·드래프트 문구의 KBO 표기 → "domestic"/"Pro". 올림픽 설명·보상의 병역면제 문구 제거(영어엔 군대 없음). |
+| **국내리그 팀 지명 제거(영어)** (`teams.en.js`) | `PRO_TEAMS_EN` 을 닉네임만으로 — "Seattle Pioneers"→"Pioneers" 등(Outlaws/Stallions/Thunder/Wave/Bandits/Suns/Foxes/Frost/Bulldogs). MLB 30구단은 실제명 유지. `region` 은 메타로만 쓰여 UI 미표시(지명 누출 없음). |
+
+검증: `node --check` 5파일 통과·`probe.mjs` 전체 통과. locale 단위 테스트: en → military=false·asianGamesTrigger=false·pro1 팀="Pioneers" / ko → 모두 그대로(서울 챌린저스·군대·아시안게임). 분기는 현재 locale 기준. 영어에서 안 쓰이는 asian_games_run/military 문자열은 잔존(무해). UI 실기 확인 대기.
+
 **자동 검증** (회귀·밸런스): `node probe.mjs` + `node probe-career.mjs` — 실행 방법 §시뮬레이션 돌려보기 참고.
 
 **수동 시나리오** (브라우저 UX 확인):
