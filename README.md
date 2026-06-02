@@ -623,6 +623,19 @@ KBO에서 MLB로 가는 경로가 없던 것 → 실제 규정 모델로 추가.
 
 검증: `node --check` 통과·`probe.mjs` 전체 통과. 광고 표시(placeholder ID라 빈 모달)·명성 게이트 체감은 실기 확인. teamFame 계수(×4)는 튜닝 가능.
 
+### v0.7.21 변경 ✓ — 광고를 GameMonetize SDK 로 교체 (게임용)
+
+AdSense 디스플레이를 모달에 넣는 방식은 게임 광고로 부적합·정책 위험 → **GameMonetize.com SDK**(웹게임 전용 전면/보상형)로 교체.
+
+| 영역 | 작업 |
+|---|---|
+| **SDK 로더** (`index.html`) | AdSense 로더 제거 → GameMonetize SDK(`api.gamemonetize.com/sdk.js`) + `SDK_OPTIONS`(gameId placeholder, `onEvent` 로 광고 중 `__adPause/__adResume`). |
+| **광고 호출** (`ads.js`) | 자체 AdSense 모달 제거 → `showInterstitialAd()` = `window.sdk.showBanner()`(GameMonetize 전면). `maybeShowSeasonAd`·`showRewardedAd` 골격 유지. 트리거(시작/3시즌/은퇴)는 그대로. |
+| **BGM 일시정지** (`main.js`) | `window.__adPause`=`stopBgm` / `__adResume`=현재 뷰 BGM 재생 — SDK pause/start 이벤트 연동. |
+| 설정 단순화 | 교체할 값 **gameId 1개**(index.html). `MONETIZATION.md` GameMonetize 기준으로 재작성. zip 재생성. |
+
+검증: `node --check` 통과. 실제 광고 노출은 GameMonetize 게임 등록·승인 + gameId 입력 후 실기 확인(미설정 시 무시).
+
 **자동 검증** (회귀·밸런스): `node probe.mjs` + `node probe-career.mjs` — 실행 방법 §시뮬레이션 돌려보기 참고.
 
 **수동 시나리오** (브라우저 UX 확인):

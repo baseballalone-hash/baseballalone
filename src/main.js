@@ -16,7 +16,7 @@ import {
   t, loadLocaleFromStorage,
 } from "./i18n/index.js";
 import { openSettingsModal } from "./views/settingsModal.js";
-import { initAudioUnlock, playBgm, sfx } from "./assets/audio.js";
+import { initAudioUnlock, playBgm, stopBgm, sfx } from "./assets/audio.js";
 import { preloadImages } from "./assets/images.js";
 import { showInterstitialAd } from "./systems/ads.js";
 
@@ -309,9 +309,12 @@ function init() {
     }
     pdInModal = false;
   }, true);
+  // 광고(GameMonetize) 동안 BGM 일시정지/복귀 — index.html SDK onEvent 가 호출.
+  window.__adPause = () => { try { stopBgm(); } catch (_) {} };
+  window.__adResume = () => { try { if (VIEW_BGM[state.view]) playBgm(VIEW_BGM[state.view]); } catch (_) {} };
   route("start");
   scheduleTick();
-  // 광고 — 시작 시점 1회(앱 진입). 로딩 연출 위로 전면 광고.
+  // 광고 — 시작 시점 1회(앱 진입).
   showInterstitialAd();
 }
 
