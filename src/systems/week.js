@@ -14,6 +14,7 @@ import { evaluateAndApplySeasonAwards } from "./awards.js";
 import { checkScheduledEvents, checkOffseasonEvents } from "./seasonEvents.js";
 import { detectMilestones } from "./milestones.js";
 import { checkPostseasonAdvance } from "./postseason.js";
+import { directionTargets, clampStatsToDirection } from "./autoTrain.js";
 
 export function createSeason(stage) {
   return {
@@ -44,14 +45,15 @@ function slimGameResult(r) {
 }
 
 // 평일 한 칸(하루) 행동 적용. reason은 i18n 키 (reason.<key>).
-export function doDailyAction(action, detail) {
+export function doDailyAction(action, detail, opts = {}) {
   const { player, season } = state;
   if (!season || season.finished) return { ok: false, reason: "noSeason" };
   if (season.dayIndex >= 5) return { ok: false, reason: "weekendPending" };
 
   let res;
   if (action === "train") {
-    res = applyTraining(player, detail);
+    // opts.stat: 자동훈련이 방향 기준으로 고른 "올릴 능력치 하나" (있으면 그 능력치만 상승).
+    res = applyTraining(player, detail, opts.stat ?? null);
   } else if (action === "work") {
     res = applyWork(player);
   } else if (action === "rest") {
@@ -93,6 +95,8 @@ export function endWeek() {
   // 이번 주 일정
   const games = league.schedule[season.weekIndex] ?? [];
   const results = [];
+  // 경기 경험치 클램프용 — 현재 훈련 방향의 능력치 목표 맵 (자동모드 없으면 null).
+  const expTargets = directionTargets(player, state.autoMode);
   for (const g of games) {
     const r = simulateGame(league, g, player);
     results.push(r);
@@ -106,7 +110,7 @@ export function endWeek() {
         player.gamesSinceLastPitch = (player.gamesSinceLastPitch ?? 99) + 1;
       }
       mergeSeasonStats(player, r.mainPlayer);
-      applyGameExperience(player, r.mainPlayer);
+      applyGameExperience(player, r.mainPlayer, expTargets);
       player.seasonStats.games++;
 
       // (제거) 예전엔 "메인 등판 경기에서 팀 승" 마다 seasonStats.w 를 또 더해 투수 W 가 폭증(통산 100+)했다.
@@ -135,6 +139,9 @@ export function endWeek() {
       }
     }
   }
+  // 밸런스 방향이면 매주 능력치를 floor+band 이내로 재정렬 (보상/경험 어디서 솟든 같은 수치 유지).
+  clampStatsToDirection(player, state.autoMode);
+
   // 슬림화된 결과만 저장 — team.roster / 큰 객체 제외. seasonResults 누적은 제거 (read 없음).
   season.weekResults = results.map(slimGameResult);
   season.weekIndex++;
@@ -208,6 +215,9 @@ export function mergeSeasonStats(player, mainPlayer) {
 // 시즌 → 다음 시즌으로 진급 (Phase 1: 단순히 학년/나이만 증가, 같은 팀 유지)
 export function advanceToNextSeason() {
   const { player, league } = state;
+  // 밸런스 방향이면, 이 시즌의 모든 보상(포스트시즌/결승/휴식기/군복무/마일스톤)이 적용된 뒤
+  // 마지막으로 능력치를 floor+band 로 재정렬 — 보상발 멘탈 등 과누적 차단(같은 수치 유지).
+  clampStatsToDirection(player, state.autoMode);
   // 누적 통계로 합산
   Object.keys(player.seasonStats).forEach(k => {
     player.careerStats[k] = (player.careerStats[k] ?? 0) + (player.seasonStats[k] ?? 0);

@@ -10,7 +10,7 @@
 
 import { state } from "../state.js";
 import { doDailyAction } from "./week.js";
-import { TRAININGS, getPlayerStatCap, BATTER_STATS, PITCHER_STATS } from "./player.js";
+import { getPlayerStatCap, BATTER_STATS, PITCHER_STATS } from "./player.js";
 
 // equalize 프리셋(밸런스)의 공통 목표값 = 대상 스탯 중 최저 cap.
 // 주력/수비 cap 150, 나머지 200 이면 → 150. 대상 능력치를 같은 값으로 수렴시킨다.
@@ -54,6 +54,48 @@ export function topWeightStat(presetKey) {
   return best;
 }
 
+// 밸런스(equalize) 방향에서 대상 능력치를 매주 "평균값으로 재분배"한다 — 총합 보존.
+//   훈련·경기경험·보상(포스트시즌/결승/휴식기/군복무/마일스톤)이 어떤 능력치를 얼마나 올렸든,
+//   대상 능력치 합을 그대로 둔 채 전부 평균으로 맞춰 → "모든 능력치가 같은 수치로" + 강함(총량)은 유지.
+//   (능력치를 깎아 버리던 옛 밴드 방식과 달리, 솟은 능력치의 초과분을 낮은 능력치로 옮겨 손실 없음.)
+//   cap 초과분은 미달 능력치로 1회 재분배. ⚠ 방향형/회복엔 적용 안 함(전환 시 능력치 깎임 방지).
+export function clampStatsToDirection(player, presetKey) {
+  const preset = AUTO_PRESETS[presetKey];
+  if (!preset || !preset.equalize || !player) return;
+  const stats = (preset.equalizeStats ?? ALL_STATS).filter(s => statValue(player, s) != null);
+  if (stats.length === 0) return;
+  const groupOf = s => (BATTER_STATS.includes(s) ? "batter" : "pitcher");
+
+  let sum = 0;
+  for (const s of stats) sum += player[groupOf(s)][s];
+  let mean = sum / stats.length;
+
+  // 1차: 평균으로 설정하되 각 cap 으로 클램프. cap 에 막혀 남은 합은 미달 능력치에 재분배.
+  let remaining = sum;
+  const capped = new Set();
+  for (let pass = 0; pass < 3; pass++) {
+    const free = stats.filter(s => !capped.has(s));
+    if (free.length === 0) break;
+    const target = remaining / free.length;
+    let overflow = 0;
+    let newlyCapped = false;
+    for (const s of free) {
+      const cap = getPlayerStatCap(player, s);
+      if (isFinite(cap) && cap > 0 && target > cap) {
+        player[groupOf(s)][s] = +cap.toFixed(1);
+        capped.add(s);
+        overflow += cap;
+        newlyCapped = true;
+      }
+    }
+    if (!newlyCapped) {
+      for (const s of free) player[groupOf(s)][s] = +target.toFixed(1);
+      break;
+    }
+    remaining -= overflow;
+  }
+}
+
 // 현재 훈련 방향이 "더 올릴 게 없음" 인가 — 일시정지+방향변경 안내 트리거.
 //   밸런스(equalize): 전 스탯이 공통 목표값(최저 cap) 도달.
 //   그 외: 최고 비중 스탯이 자기 cap 도달.
@@ -95,32 +137,48 @@ function statDeficit(stat, player, weight, equalTarget = null) {
   return (target - v) / cap;
 }
 
-// 한 종목이 올리는 스탯들의 (목표 대비) 부족분 합 = 점수.
-// 단, 이미 목표 달성했거나 비중 0 인 스탯을 또 올리는 종목은 "누수"로 감점 —
-// 예: 슬러거가 파워(목표 100) 때문에 웨이트(파워+스태미나)를 쓰면 스태미나(목표 0)가 딸려 오르는 것을
-//     억제하고, 대신 batting(파워+컨택) 처럼 원하는 스탯만 올리는 종목을 선호하게.
-const LEAK_PENALTY = 0.4;
-function trainingScore(trKey, preset, player) {
-  const tr = TRAININGS[trKey];
-  if (!tr) return 0;
-  const equalTarget = preset.equalize ? equalizeTarget(player, preset.equalizeStats) : null;
-  let s = 0;
-  for (const stat of tr.stats) {
+// 능력치 → 표시용 대표 훈련. 자동훈련은 "어떤 능력치를 올릴지"를 방향(프리셋)으로 정하고,
+// 그 능력치 하나만 올린다(아래 pickAutoAction). 실제 상승 능력치와 훈련 종목을 분리해 —
+// 옛 방식의 "훈련 종목이 고정 2스탯을 동시에 올려 특정 능력치(컨택/제구/파워)만 솟던" 불균형 제거.
+// 훈련 이름·체력소모·부상위험은 이 대표 훈련에서 가져온다(피드/로그 표시용).
+const STAT_TRAINING = {
+  contact:  "batting",
+  power:    "weight",
+  eye:      "eye_drill",
+  speed:    "running",
+  defense:  "fielding",
+  velocity: "pitching",
+  control:  "breaking_drill",
+  breaking: "breaking_drill",
+  stamina:  "weight",
+  mental:   "mental",
+};
+
+const ALL_STATS = [...BATTER_STATS, ...PITCHER_STATS];
+
+// 경기 경험치(applyGameExperience) 클램프용 능력치 목표 맵 { contact:150, power:120, ... }.
+//   - 방향형: 목표 = 비중 × cap → 경기를 잘 해도 비중 이상으로 특정 능력치가 솟지 않음(빌드 형태 유지).
+//   - 밸런스(equalize): null 반환 → 경기경험은 막지 않고, 대신 clampStatsToDirection 이 매주 평균으로
+//     재분배해 균형을 맞춘다(경기경험을 버리지 않고 보존).
+// presetKey 없으면 null → 클램프 안 함(기존 동작).
+export function directionTargets(player, presetKey) {
+  const preset = AUTO_PRESETS[presetKey];
+  if (!preset || !player) return null;
+  if (preset.equalize) return null;
+  const out = {};
+  for (const stat of ALL_STATS) {
     const w = preset.statWeights[stat] ?? 0;
-    const def = statDeficit(stat, player, w, equalTarget);
-    if (def > 0) {
-      s += def;
-    } else {
-      // 목표 달성/비중0 스탯을 또 올림 → 남은 캡 여유에 비례해 감점.
-      const v = statValue(player, stat);
-      const cap = getPlayerStatCap(player, stat);
-      if (v != null && cap > 0) s -= LEAK_PENALTY * Math.max(0, (cap - v) / cap);
-    }
+    const cap = getPlayerStatCap(player, stat);
+    if (!isFinite(cap) || cap <= 0) continue;
+    out[stat] = w * cap;
   }
-  return Math.max(0, s);
+  return out;
 }
 
-// 다음 한 칸의 행동 결정 — 목표 비중 대비 부족분에 비례한 가중 추첨.
+// 다음 한 칸의 행동 결정 — 방향의 목표 대비 가장 부족한 "능력치 하나"를 부족분 비례 추첨으로 선택.
+//   - 밸런스(equalize): 목표 = 공통값(최저 cap). 항상 가장 낮은 능력치 쪽이 뽑혀 전 능력치가 같은 값으로 수렴.
+//   - 방향형: 목표 = 비중×cap. 비중 높은 능력치일수록 목표가 높아 더 자주 뽑힘(빌드 형성). 비중 0 은 제외.
+//   세션당 능력치 1개만 올리므로, 대상 능력치가 많은 양방향(10종)은 타자/투수 밸런스(5종)보다 능력치당 절반 속도로 오른다.
 // 모든 목표 도달(또는 비중 0뿐) 이면 휴식.
 export function pickAutoAction(presetKey, player) {
   if (player.injury) return { action: "rest" };
@@ -133,21 +191,26 @@ export function pickAutoAction(presetKey, player) {
   // 체력 50 미만이면 추가 휴식 확률
   if (player.stamina < 50 && Math.random() < 0.2) return { action: "rest" };
 
-  const scored = Object.keys(TRAININGS).map(k => [k, trainingScore(k, preset, player)]);
-  const total = scored.reduce((a, [, w]) => a + w, 0);
+  const equalTarget = preset.equalize ? equalizeTarget(player, preset.equalizeStats) : null;
+  const scored = [];
+  let total = 0;
+  for (const stat of ALL_STATS) {
+    const w = preset.statWeights[stat] ?? 0;
+    if (w <= 0) continue;
+    const def = statDeficit(stat, player, w, equalTarget);
+    if (def > 0) { scored.push([stat, def]); total += def; }
+  }
   // 모든 목표 달성 — 더 키울 게 없음. 휴식.
   if (total <= 0.001) return { action: "rest" };
 
-  // 부족분 비례 가중 추첨 → 목표 비중대로 자연 분배
+  // 부족분 비례 가중 추첨 → 가장 부족한 능력치일수록 자주 뽑힘
   let r = Math.random() * total;
-  for (const [k, w] of scored) {
-    r -= w;
-    if (r <= 0) return { action: "train", detail: k };
+  let chosen = scored[0][0];
+  for (const [stat, def] of scored) {
+    r -= def;
+    if (r <= 0) { chosen = stat; break; }
   }
-  // 폴백 — 점수 최고
-  let best = scored[0];
-  for (const e of scored) if (e[1] > best[1]) best = e;
-  return { action: "train", detail: best[0] };
+  return { action: "train", detail: STAT_TRAINING[chosen] ?? "batting", stat: chosen };
 }
 
 // 남은 평일 자동 진행
@@ -159,7 +222,7 @@ export function autoFillWeek(presetKey) {
   let safetyLimit = 10; // 무한 루프 방지
   while (state.season.dayIndex < 5 && safetyLimit-- > 0) {
     const pick = pickAutoAction(presetKey, state.player);
-    const res = doDailyAction(pick.action, pick.detail);
+    const res = doDailyAction(pick.action, pick.detail, { stat: pick.stat });
     if (!res.ok) break;
     days.push({ pick, res });
     if (res.result?.critical) crits++;

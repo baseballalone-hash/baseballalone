@@ -54,6 +54,8 @@ function emptyStats() {
 const highTeam = getTeamPool("high", "ko")[0].name;
 startHighSchoolCareer("김야구", "contact", highTeam);
 state.player.seasonStats = emptyStats();
+// 실게임과 동일하게 자동훈련 방향을 설정 — endWeek/advanceToNextSeason 의 능력치 클램프가 이 값을 본다.
+state.autoMode = "two_way";
 
 const seasonReports = [];
 const peakStats = {
@@ -135,7 +137,7 @@ function runOneSeason(stage) {
   let injuredWeeks = 0;
   for (let w = 0; w < weeks; w++) {
     if (state.player.injury) injuredWeeks++;
-    autoFillWeek("balanced");
+    autoFillWeek("two_way");
     // 한 주 = 7일 캘린더 진행 (tick.js 의 advanceOneDay 우회). endWeek 의 checkScheduledEvents 가
     // 이 시점의 gameDate.month/day 로 trigger 검사하므로 advance 가 endWeek 보다 *먼저* 일어나야 함.
     if (state.gameDate) {

@@ -1964,37 +1964,138 @@ function renderCareerHighGrid(player) {
 }
 
 // 통산 기록 슬라이드 — 누적 stat (시즌 종료 시점에 시즌 결과 합산 후 표시되도록 시즌 시점 stats + 누적 추가)
+// ─── 리그 그룹 (통산 기록·우승/준우승 분리 단위 — B안) ────────────────
+// 실제 야구처럼 KBO·MLB 통산은 분리. 마이너(2군/AAA 이하)도 별도.
+const LEAGUE_GROUPS = ["high", "univ", "kbo1", "kbo2", "mlbMajor", "mlbMinor"];
+
+function leagueGroupOfStage(stage) {
+  switch (stage) {
+    case "high": return "high";
+    case "univ": return "univ";
+    case "pro1": return "kbo1";
+    case "pro2": return "kbo2";
+    case "mlb":  return "mlbMajor";
+    case "mlb_a": case "mlb_aa": case "mlb_aaa": return "mlbMinor";
+    default: return null;
+  }
+}
+
+// 대회 키 → 리그 그룹. HS 토너먼트 / 대학(_univ) / KBO PO(kbo_) / MLB PO(mlb_).
+function leagueGroupOfTournament(key) {
+  if (!key) return null;
+  if (key.startsWith("kbo_")) return "kbo1";
+  if (key.startsWith("mlb_")) return "mlbMajor";
+  if (key.startsWith("univ_") || key.endsWith("_univ")) return "univ";
+  return "high";
+}
+
 function renderCareerTotalsBody(player) {
-  // 시즌 종료 시점에선 advanceToNextSeason 이 아직 호출되지 않아 careerStats 가 갱신 안 됨.
-  // → 현재 careerStats 와 이번 시즌 seasonStats 를 합산해서 미리 보여줌.
-  const c = player.careerStats ?? {};
-  const s = player.seasonStats ?? {};
-  const add = (k) => (c[k] ?? 0) + (s[k] ?? 0);
+  // 리그별 분리 집계. careerHistory 의 시즌별 stats 를 리그 그룹으로 묶고,
+  // 아직 careerStats/careerHistory 에 안 들어간 현재 시즌(seasonStats)은 현재 stage 그룹에 더해 미리 반영.
+  const groups = {};
+  const ensure = g => (groups[g] ??= { games: 0, ab: 0, h: 0, hr: 0, pK: 0, ipOuts: 0, er: 0 });
+  const addStats = (g, s) => {
+    if (!g || !s) return;
+    const a = ensure(g);
+    a.games += s.games ?? 0;
+    a.ab += s.ab ?? 0;
+    a.h  += s.h  ?? 0;
+    a.hr += s.hr ?? 0;
+    a.pK += s.pK ?? 0;
+    a.ipOuts += s.ipOuts ?? Math.round((s.ip ?? 0) * 3);
+    a.er += s.er ?? 0;
+  };
+  for (const h of (player.careerHistory ?? [])) addStats(leagueGroupOfStage(h.stage), h.stats);
+  addStats(leagueGroupOfStage(player.stage), player.seasonStats);
 
-  const games = add("games");
-  const pa = add("pa");
-  const ab = add("ab");
-  const h = add("h");
-  const hr = add("hr");
-  const pK = add("pK");
-  const ip = add("ip");
-  const er = add("er");
-  const ba = ab > 0 ? (h / ab).toFixed(3).replace(/^0/, "") : ".---";
-  const era = ip > 0 ? ((er / ip) * 9).toFixed(2) : "-";
+  const played = LEAGUE_GROUPS.filter(g => groups[g] && (groups[g].games > 0 || groups[g].ipOuts > 0));
 
-  const grid = document.createElement("div");
-  grid.style.cssText = "display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:6px 8px;";
+  const wrap = document.createElement("div");
+  if (played.length === 0) {
+    const none = document.createElement("div");
+    none.className = "muted small";
+    none.style.cssText = "padding:4px 2px; font-size:11px;";
+    none.textContent = t("weekly.careerNoGames");
+    wrap.appendChild(none);
+    return wrap;
+  }
 
-  grid.appendChild(infoBlock(t("weekly.statG"),   String(games), null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statBa"),  ba, null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statH"),   String(h), null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statHr"),  String(hr), null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statPa"),  String(pa), null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statKK"),  String(pK), null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statIp"),  ip.toFixed(1), null, "sm"));
-  grid.appendChild(infoBlock(t("weekly.statEra"), era, null, "sm"));
+  const table = document.createElement("table");
+  table.style.cssText = "width:100%; border-collapse:collapse; font-size:11px;";
+  const thead = document.createElement("tr");
+  for (const [label, alignNum] of [
+    [t("weekly.ctLeague"), false], [t("weekly.ctG"), true], [t("weekly.ctAvg"), true],
+    [t("weekly.ctHr"), true], [t("weekly.ctIp"), true], [t("weekly.ctEra"), true], [t("weekly.ctK"), true],
+  ]) {
+    const th = document.createElement("th");
+    th.textContent = label;
+    th.style.cssText = `padding:3px 4px; font-size:10px; color:var(--muted); text-align:${alignNum ? "right" : "left"};`;
+    thead.appendChild(th);
+  }
+  table.appendChild(thead);
 
-  return grid;
+  for (const g of played) {
+    const a = groups[g];
+    const ba = a.ab > 0 ? (a.h / a.ab).toFixed(3).replace(/^0/, "") : ".---";
+    const ip = a.ipOuts / 3;
+    const era = ip > 0 ? ((a.er / ip) * 9).toFixed(2) : "-";
+    const tr = document.createElement("tr");
+    const cells = [
+      [t("leagueGroup." + g), false],
+      [String(a.games), true],
+      [ba, true],
+      [String(a.hr), true],
+      [ip >= 1 ? ip.toFixed(0) : (ip > 0 ? ip.toFixed(1) : "-"), true],
+      [era, true],
+      [a.pK > 0 ? String(a.pK) : "-", true],
+    ];
+    for (const [val, alignNum] of cells) {
+      const td = document.createElement("td");
+      td.textContent = val;
+      td.style.cssText = `padding:4px; border-top:1px solid var(--border); text-align:${alignNum ? "right" : "left"};${alignNum ? "" : " font-weight:600;"}`;
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  wrap.appendChild(table);
+  return wrap;
+}
+
+// 리그별 우승·준우승 — tournamentHistory(champion/runner)를 리그 그룹으로 집계.
+function renderLeagueTitlesBody(player) {
+  const wrap = document.createElement("div");
+  const tally = {};   // group -> { champion, runner }
+  for (const r of (player.tournamentHistory ?? [])) {
+    if (r.result !== "champion" && r.result !== "runner") continue;
+    const g = leagueGroupOfTournament(r.tournamentKey);
+    if (!g) continue;
+    (tally[g] ??= { champion: 0, runner: 0 })[r.result]++;
+  }
+  const played = LEAGUE_GROUPS.filter(g => tally[g]);
+  if (played.length === 0) {
+    const none = document.createElement("div");
+    none.className = "muted small";
+    none.style.cssText = "padding:4px 2px; font-size:11px;";
+    none.textContent = t("weekly.noTournamentsYet");
+    wrap.appendChild(none);
+    return wrap;
+  }
+  for (const g of played) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding:5px 2px; border-bottom:1px solid var(--border); font-size:12px;";
+    const name = document.createElement("span");
+    name.style.fontWeight = "600";
+    name.textContent = t("leagueGroup." + g);
+    row.appendChild(name);
+    const rec = document.createElement("span");
+    const parts = [];
+    if (tally[g].champion > 0) parts.push(`<span style="color:var(--good); font-weight:700;">${t("result.champion")} ×${tally[g].champion}</span>`);
+    if (tally[g].runner > 0)   parts.push(`<span style="color:var(--accent-2); font-weight:700;">${t("result.runner")} ×${tally[g].runner}</span>`);
+    rec.innerHTML = parts.join(" · ");
+    row.appendChild(rec);
+    wrap.appendChild(row);
+  }
+  return wrap;
 }
 
 // 시즌 수상 슬라이드 — 이번 시즌 수상 + 통산 수상 카운트
@@ -2038,6 +2139,13 @@ function renderAwardsBody(player, season) {
       wrap.appendChild(row);
     }
   }
+
+  // 리그별 우승·준우승 (시즌 종료 화면)
+  const titles = document.createElement("h3");
+  titles.style.cssText = "margin:12px 0 6px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;";
+  titles.textContent = t("weekly.leagueTitlesTitle");
+  wrap.appendChild(titles);
+  wrap.appendChild(renderLeagueTitlesBody(player));
 
   return wrap;
 }

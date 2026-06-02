@@ -65,7 +65,7 @@ export function advanceOneDay() {
       // 자동 모드 OFF: 부상이면 휴식, 아니면 가벼운 휴식
       pick = { action: "rest" };
     }
-    doDailyAction(pick.action, pick.detail);
+    doDailyAction(pick.action, pick.detail, { stat: pick.stat });
     if (state.gameDate) advanceDate(state.gameDate);
     return false;
   }

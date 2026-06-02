@@ -279,7 +279,9 @@ function isFirstSeason(player) {
 }
 
 // 단일 훈련 적용 (하루치)
-export function applyTraining(player, trainingKey) {
+// forcedStat: 자동훈련이 방향 기준으로 고른 능력치. 주어지면 tr.stats 대신 그 능력치 하나만 올린다.
+//   (훈련 종목은 표시·체력소모·부상위험용으로만 쓰이고, 실제 상승 능력치는 방향이 결정.)
+export function applyTraining(player, trainingKey, forcedStat = null) {
   if (player.injury) return { ok: false, reason: "injured" };
   if (player.stamina < 15) return { ok: false, reason: "lowStamina" };
   const tr = TRAININGS[trainingKey];
@@ -295,7 +297,8 @@ export function applyTraining(player, trainingKey) {
   // 훈련 효율 배수 — mentor_letter (멘토의 편지). 모든 훈련 획득량에 곱연산.
   const trainEff = effectMultiplier(player, "trainEfficiency");
   const gained = {};
-  for (const stat of tr.stats) {
+  const trainStats = forcedStat ? [forcedStat] : tr.stats;
+  for (const stat of trainStats) {
     const base = (0.5 + Math.random() * 0.9) * TRAIN_GAIN_COEFF * firstSeasonBoost * trainEff;
     const boost = talentBoost[stat] ?? 1.0;
     const cap = getPlayerStatCap(player, stat);
@@ -503,7 +506,10 @@ export function tickConditionWeekly(player) {
 
 // 경기 출장 경험치 — 매 경기 후 능력치 소량 상승
 // box 구조: batterBox(.pa, .h, .hr, .bb, .k, .tb), pitcherBox(.er, .pK, .pBB, .pH, .pHR)
-export function applyGameExperience(player, mainPlayerResult) {
+// targets: 훈련 방향(프리셋)별 능력치 목표 맵 { contact:150, ... } (autoTrain.directionTargets).
+//   양(+) 경험치가 이 목표를 넘겨 특정 능력치(컨택/멘탈 등)를 부풀리지 않게 클램프 — 밸런스/방향 유지.
+//   null 이면(자동모드 OFF) 클램프 안 함(기존 동작). 음(-) 페널티는 목표와 무관하게 항상 적용.
+export function applyGameExperience(player, mainPlayerResult, targets = null) {
   if (!mainPlayerResult) return { gained: {} };
   const gained = {};
   const ageMult = ageMultiplier(player.age);
@@ -513,8 +519,13 @@ export function applyGameExperience(player, mainPlayerResult) {
     // 경기 경험치 효율 축소 — 옛 ×1.5 는 매 시즌 stat +10~20 으로 노화 감쇄를 압도.
     // ×0.7 로 낮춰 30대 후반에 노화 감쇄가 우세해지도록 (실제 야구 곡선).
     const adj = amount * ageMult * 0.7;
-    const cap = getPlayerStatCap(player, stat);
     const curr = player[group][stat];
+    // 방향 목표 초과 시 양(+) 경험치 차단 (페널티는 통과).
+    if (adj > 0 && targets) {
+      const tgt = targets[stat];
+      if (tgt != null && curr >= tgt) return;
+    }
+    const cap = getPlayerStatCap(player, stat);
     const diminish = Math.max(0.15, (cap - curr) / cap);
     const delta = +(adj * diminish).toFixed(3);
     player[group][stat] = Math.min(cap, +(curr + delta).toFixed(2));

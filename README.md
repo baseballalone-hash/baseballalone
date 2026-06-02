@@ -544,6 +544,18 @@ KBO에서 MLB로 가는 경로가 없던 것 → 실제 규정 모델로 추가.
 
 검증: `node --check src/main.js src/views/menu.js` 통과. 레이아웃·뒤로가기 거동·클라우드 동작은 안드로이드 실기 확인 대기(샌드박스 브라우저 없음).
 
+### v0.7.14 추가 ✓ — 훈련 방향형 재설계 + 통산기록·우승 리그별 분리
+
+| 영역 | 작업 |
+|---|---|
+| **훈련 = 방향 기준 단일 능력치** (`autoTrain.js` + `player.js` + `week.js` + `tick.js`) | 옛 방식은 훈련 종목이 고정 2스탯을 동시에 올려(컨택·제구·파워가 여러 종목에 중복) 밸런스인데도 특정 능력치만 솟음. 자동훈련을 "방향(프리셋)의 목표 대비 가장 부족한 능력치 1개"만 올리도록 변경 — 훈련 이름·체력소모·부상위험은 표시용 대표훈련(`STAT_TRAINING`)에서. `applyTraining(player, key, forcedStat)` 1인자 추가, `doDailyAction(...,{stat})` 경유. 세션당 1능력치라 **양방향(10종)은 타자/투수 밸런스(5종)의 절반 속도**. |
+| **밸런스 = 평균 재분배(총량 보존)** (`autoTrain.clampStatsToDirection`) | equalize 프리셋은 매주+시즌전환 시 대상 능력치를 **평균값으로 재분배** — 보상(PO/결승/휴식기/군복무/마일스톤)·경기경험이 어디서 솟든 초과분을 낮은 능력치로 옮겨 "모두 같은 수치로"(깎지 않고 보존, cap 초과분 재분배). 방향형/회복엔 미적용(모드 전환 시 능력치 보존). 방향형은 `directionTargets`(비중×cap)로 경기경험 클램프. |
+| **통산 기록 리그별 분리 (B안)** (`weekly.renderCareerTotalsBody`) | 전 리그 합산 → 고교/대학/KBO 1군/KBO 2군/MLB/MLB 마이너 6그룹(`leagueGroupOfStage`). `careerHistory`를 그룹별로 묶어 실제 뛴 리그만 표(리그·G·타율·HR·이닝·ERA·K)+현재시즌 가산. |
+| **리그별 우승·준우승** (`weekly.renderLeagueTitlesBody`) | `tournamentHistory`(champion/runner)를 대회키→리그(`leagueGroupOfTournament`) 매핑 집계 → 시즌종료 수상 슬라이드에 "리그별 우승·준우승" 섹션. i18n `weekly.leagueGroup.*` + 표 헤더 키 추가(ko/en). |
+| **fix(probe) — stale 훈련 프리셋 키** (`probe-career.mjs`) | `autoFillWeek("balanced")`(존재하지 않는 키 → 훈련 0회·휴식만)를 `two_way` 로 수정 + 실게임처럼 `state.autoMode` 설정(클램프 발화). |
+
+검증: `node --check` 9파일 통과. `probe.mjs` 전체 통과. `probe-career`(two_way) 피크 능력치 **완전 균등(168~178)**·AVG .28~.30·ERA 2.3~2.9 현실 범위. `probe-regression` capBoosts 실패는 HEAD 동일한 기존 실패(무관). UI 표시는 안드로이드 실기 확인 대기.
+
 **자동 검증** (회귀·밸런스): `node probe.mjs` + `node probe-career.mjs` — 실행 방법 §시뮬레이션 돌려보기 참고.
 
 **수동 시나리오** (브라우저 UX 확인):

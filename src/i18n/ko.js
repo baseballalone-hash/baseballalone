@@ -937,6 +937,25 @@ export const ko = {
     noAwards: "수상 없음",
     careerTotalsTitle: "통산 기록",
     careerAwardsTitle: "통산 수상",
+    leagueTitlesTitle: "리그별 우승·준우승",
+    careerNoGames: "기록 없음",
+    // 통산 기록 표 헤더 (좁은 폭 — 짧게)
+    ctLeague: "리그",
+    ctG: "경기",
+    ctAvg: "타율",
+    ctHr: "홈런",
+    ctIp: "이닝",
+    ctEra: "ERA",
+    ctK: "탈삼진",
+    // 리그 그룹 라벨 (통산/우승 분리 단위 — B안)
+    leagueGroup: {
+      high:     "고교",
+      univ:     "대학",
+      kbo1:     "KBO 1군",
+      kbo2:     "KBO 2군",
+      mlbMajor: "MLB",
+      mlbMinor: "MLB 마이너",
+    },
 
     valGame: "경기",
     valTraining: "훈련({short})",
