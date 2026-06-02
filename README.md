@@ -588,6 +588,17 @@ KBO에서 MLB로 가는 경로가 없던 것 → 실제 규정 모델로 추가.
 
 검증: `node --check` 5파일 통과·`probe.mjs` 전체 통과. locale 단위 테스트: en → military=false·asianGamesTrigger=false·pro1 팀="Pioneers" / ko → 모두 그대로(서울 챌린저스·군대·아시안게임). 분기는 현재 locale 기준. 영어에서 안 쓰이는 asian_games_run/military 문자열은 잔존(무해). UI 실기 확인 대기.
 
+### v0.7.18 fix ✓ — 뒤로가기로 모달 닫기 + 모달 닫기(×) 버튼 + 클라우드 불러오기 게임 직행
+
+| 영역 | 작업 |
+|---|---|
+| **뒤로가기 = 최상단 모달만 닫기** (`main.js setupModalManager`) | 안드로이드/브라우저 뒤로가기는 route 를 안 거쳐, 옛 fix(route 전환 시 모달 정리)로는 "오퍼 모달에서 뒤로가기 → 모달이 body 에 남아 이어하기/새 게임 먹통"이 안 고쳐졌음. `body`의 `.modal-backdrop` 을 MutationObserver 로 감시 → 모달 열리면 `history.pushState` 트랩, popstate 시 앱 이탈 대신 **최상단 모달만 제거**. 단일 트랩 모델로 스택/버튼닫기 정합 유지(데드 백프레스·페이지 이탈 없음). → 먹통 근본 해결. |
+| **모든 모달에 닫기(×) 버튼** (`main.js`) | 닫기 버튼 없는 모달에 × 자동 주입(backdrop 에 절대위치 부착 → rerender 의 `dialog.innerHTML=""` 에도 생존). 기존 닫기 보유(설정) 스킵. 군 입대 모달은 `data-no-dismiss` 로 닫기 금지(닫으면 시즌 이중 진행 위험 — 선택 강제). |
+| **시즌 이벤트 모달 DOM dedup** (`weekly.js`) | 모듈 플래그 `_seasonEventModalShown` 제거 → `data-modal="seasonEvent"` DOM 존재 기반(올스타/국제대회). 닫아도 플래그 고착 없이 다음 렌더 재출현(보상 유실·교착 방지). |
+| **클라우드 불러오기 게임 직행** (`menu.js`) | 성공 시 `location.reload()`(시작화면만 감) → `loadGame()`+`route("weekly")` 로 **즉시 게임 진입**(실패 시만 reload 폴백). "불러오면 그냥 새로고침" 해결. |
+
+검증: `node --check` 3파일 통과·`probe.mjs` 전체 통과. 모달 뒤로가기/× 동작·이어하기/새 게임·군입대 닫기금지·클라우드 진입은 안드로이드 실기 확인 대기.
+
 **자동 검증** (회귀·밸런스): `node probe.mjs` + `node probe-career.mjs` — 실행 방법 §시뮬레이션 돌려보기 참고.
 
 **수동 시나리오** (브라우저 UX 확인):

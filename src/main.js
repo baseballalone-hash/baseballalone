@@ -213,6 +213,68 @@ function setupScrollTopButton() {
   update();
 }
 
+// 모달 뒤로가기/닫기 관리 — body 에 붙는 .modal-backdrop 을 MutationObserver 로 감시.
+//  (1) 모달이 열리면 history 트랩을 쌓아 안드로이드/브라우저 "뒤로가기" 가 앱을 나가지 않고
+//      최상단 모달만 닫게 한다. (옛 버그: 오퍼 모달에서 뒤로가기 → 모달이 body 에 남아
+//      시작화면 전체 클릭을 가로채 이어하기/새 게임 먹통.)
+//  (2) 닫기(×) 버튼이 없는 모달엔 자동 주입. data-no-dismiss 모달(예: 군 입대)은 제외.
+function setupModalManager() {
+  const openModals = () => document.querySelectorAll("body > .modal-backdrop");
+  const topModal = () => { const m = openModals(); return m.length ? m[m.length - 1] : null; };
+
+  function injectCloseButton(backdrop) {
+    if (backdrop.dataset.noDismiss != null) return;
+    // 이미 닫기 버튼이 있으면(예: 설정 모달) 추가 안 함.
+    if (backdrop.querySelector(".modal-close")) return;
+    // backdrop 에 직접 붙인다 — 모달이 rerender 로 dialog.innerHTML 을 비워도 닫기 버튼이 살아남도록.
+    // (position:absolute 로 flex 흐름에서 빼고 오버레이 우상단 고정.)
+    const x = document.createElement("button");
+    x.className = "modal-close";
+    x.type = "button";
+    x.setAttribute("aria-label", "Close");
+    x.textContent = "×";
+    x.style.cssText = "position:absolute; top:14px; right:16px; z-index:2;";
+    x.addEventListener("click", () => backdrop.remove());
+    backdrop.appendChild(x);
+  }
+
+  let trapped = false;       // 열린 모달이 있을 때 history 트랩 1개를 유지
+  let ignorePop = false;     // 버튼/외부클릭으로 닫혀 우리가 history.back() 한 경우 무시
+  function syncTrap() {
+    const open = openModals().length > 0;
+    if (open && !trapped) {
+      history.pushState({ nirModal: true }, "");
+      trapped = true;
+    } else if (!open && trapped) {
+      // 모달이 (뒤로가기 외) 다른 방법으로 모두 닫힘 → 쌓아둔 트랩 소비(페이지 이탈 방지).
+      trapped = false;
+      ignorePop = true;
+      history.back();
+    }
+  }
+
+  new MutationObserver(mutations => {
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType === 1 && node.classList?.contains("modal-backdrop")) injectCloseButton(node);
+      }
+    }
+    syncTrap();
+  }).observe(document.body, { childList: true });
+
+  window.addEventListener("popstate", () => {
+    if (ignorePop) { ignorePop = false; return; }
+    const m = topModal();
+    if (!m) return;                                   // 모달 없으면 정상 뒤로가기(앱 종료 등)
+    if (m.dataset.noDismiss != null) {                // 닫기 금지 모달 — 재트랩만(탈출 차단)
+      history.pushState({ nirModal: true }, "");
+      return;
+    }
+    trapped = false;                                  // 이 뒤로가기로 트랩 엔트리 소비됨
+    m.remove();                                       // 최상단 모달 닫기 (남은 모달 있으면 syncTrap 이 재트랩)
+  });
+}
+
 // 초기 진입
 function init() {
   loadLocaleFromStorage();
@@ -227,6 +289,7 @@ function init() {
   wireSettingsButton();
   wirePauseButton();
   setupScrollTopButton();
+  setupModalManager();  // 뒤로가기로 모달 닫기 + 닫기(×) 버튼 자동 주입
   initAudioUnlock();   // 첫 사용자 제스처에 오디오 unlock
   preloadImages();     // preload=true 이미지 미리 받기 (없으면 조용히 실패)
   // 모든 버튼 클릭에 효과음(위임) + 모달 통과 클릭 차단.

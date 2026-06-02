@@ -3675,10 +3675,10 @@ function showPostseasonModalIfNeeded(route) {
 
 // 시즌 중 이벤트(올스타전 등) 모달 — pendingEvents 큐 첫 항목 처리.
 // 현재는 all_star 만 모달 핸들링. 다른 modal-type 이벤트도 같은 패턴으로 추가 가능.
-let _seasonEventModalShown = false;
 function showSeasonEventModalIfNeeded(route) {
   const ev = nextPendingEvent();
-  if (!ev || _seasonEventModalShown) return;
+  // 이미 시즌 이벤트 모달이 떠 있으면 중복 생성 방지 — DOM 존재 기반(닫기/뒤로가기로 닫으면 다음 렌더에 재출현, 플래그 고착 없음).
+  if (!ev || document.querySelector("[data-modal='seasonEvent']")) return;
 
   // 라이브 모달 자동 진행 설정 (skipFinalsModal) — 결승/PO 와 통합. ON 이면 모달 안 띄우고 자동 시뮬+보상+토스트.
   if (state.settings?.skipFinalsModal) {
@@ -3699,10 +3699,8 @@ function showSeasonEventModalIfNeeded(route) {
   }
 
   if (ev.handlerKey === "allStarLive") {
-    _seasonEventModalShown = true;
     showAllStarModal(route);
   } else if (ev.handlerKey === "intlTournamentLive") {
-    _seasonEventModalShown = true;
     showIntlTournamentModal(ev, route);
   } else {
     clearPendingEvent();
@@ -3717,6 +3715,7 @@ function showAllStarModal(route) {
 
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
+  backdrop.dataset.modal = "seasonEvent";   // DOM 기반 중복방지 마커
   const dialog = document.createElement("div");
   dialog.className = "modal-dialog";
   dialog.style.position = "relative";
@@ -3749,7 +3748,6 @@ function showAllStarModal(route) {
           // 시뮬 실패 — 보상만 부여하고 종료
           applyAllStarReward(state.player);
           clearPendingEvent();
-          _seasonEventModalShown = false;
           state.paused = false;
           saveGame();
           backdrop.remove();
@@ -3803,7 +3801,6 @@ function showAllStarModal(route) {
       btn.addEventListener("pointerdown", e => {
         e.preventDefault();
         clearPendingEvent();
-        _seasonEventModalShown = false;
         state.paused = false;
         saveGame();
         backdrop.remove();
@@ -3826,6 +3823,7 @@ function showIntlTournamentModal(ev, route) {
 
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
+  backdrop.dataset.modal = "seasonEvent";   // DOM 기반 중복방지 마커
   const dialog = document.createElement("div");
   dialog.className = "modal-dialog";
   dialog.style.position = "relative";
@@ -3859,7 +3857,6 @@ function showIntlTournamentModal(ev, route) {
           // 시뮬 실패 폴백 — 보상만 부여 후 종료
           applyIntlTournamentReward(state.player, ev.key, ev.year ?? state.gameDate?.year);
           clearPendingEvent();
-          _seasonEventModalShown = false;
           state.paused = false;
           saveGame();
           backdrop.remove();
@@ -3912,7 +3909,6 @@ function showIntlTournamentModal(ev, route) {
       btn.addEventListener("pointerdown", e => {
         e.preventDefault();
         clearPendingEvent();
-        _seasonEventModalShown = false;
         state.paused = false;
         saveGame();
         backdrop.remove();
@@ -3932,6 +3928,8 @@ function showIntlTournamentModal(ev, route) {
 function openMilitaryModal(player, onClose) {
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
+  // 닫기 금지 — 선택 없이 닫으면 시즌이 이미 진행된 상태에서 휴식기 모달이 재노출돼 이중 진행 위험.
+  backdrop.dataset.noDismiss = "1";
   const dialog = document.createElement("div");
   dialog.className = "modal-dialog";
   dialog.style.position = "relative";

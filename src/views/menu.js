@@ -362,7 +362,9 @@ function renderCloudPanel(route) {
     loadBtn.textContent = t("cloud.loading");
     const result = await loadFromCloud();
     if (result.ok) {
-      location.reload();
+      // 클라우드 → 로컬 기록 후, 새로고침만 하지 말고 바로 게임으로 진입.
+      if (loadGame()) { resetWeeklyCarousel(); route("weekly"); }
+      else location.reload();   // 로드 실패 시에만 새로고침 폴백
     } else {
       loadBtn.disabled = false;
       loadBtn.textContent = t("cloud.loadBtn");
