@@ -473,6 +473,8 @@ export const en = {
     notSignedIn:    "Signing in...",
     notFound:       "No cloud save found",
     noLocalSave:    "No local save to upload",
+    signInToSave:   "Sign in with Google to save to the cloud (cross-device sync).",
+    signInHint:     "Sign in with Google to sync across devices",
     saveFailed:     "Save failed",
     loadFailed:     "Load failed",
     confirmOverwriteLocal: "Local save is newer than cloud. Overwrite with cloud data?",

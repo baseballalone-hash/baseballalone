@@ -38,7 +38,7 @@ import { nextPendingEvent, clearPendingEvent, simulateAllStarGame, applyAllStarR
 import { computeHallOfFameScore, hofRank } from "../systems/hallOfFame.js";
 import { recordRun, loadRegressionMeta, unlockItem } from "../systems/regression.js";
 import { saveToCloud, getCloudSaveMeta } from "../cloud/cloudSave.js";
-import { isSignedIn } from "../cloud/auth.js";
+import { isSignedIn, isAnonymousUser } from "../cloud/auth.js";
 
 export function renderWeekly(root, route, opts = {}) {
   const { player, league, season } = state;
@@ -2225,8 +2225,8 @@ function renderSeasonEnd(root, route) {
     btnPanel.className = "panel";
     btnPanel.style.padding = "10px";
 
-    // ☁️ 시즌 종료 마다 클라우드 저장 — 영구 백업 (Phase B/C wiring).
-    if (isSignedIn()) {
+    // ☁️ 시즌 종료 마다 클라우드 저장 — 영구 백업. Google 로그인(비익명)일 때만 (익명은 기기 종속이라 동기화 불가).
+    if (isSignedIn() && !isAnonymousUser()) {
       const cloudBtn = document.createElement("button");
       cloudBtn.type = "button";
       cloudBtn.textContent = t("cloud.saveBtn");
@@ -2925,9 +2925,9 @@ function renderCareerEndedPanel(route) {
   regressionBox.appendChild(balLine);
   panel.appendChild(regressionBox);
 
-  // ☁️ 클라우드 저장 — Firebase 로그인 상태일 때만 노출 (영구 백업 유도).
+  // ☁️ 클라우드 저장 — Google 로그인(비익명)일 때만 노출 (익명 uid 는 기기 종속이라 동기화 불가).
   // 은퇴 시점 = 캐릭터 종료 + 회귀 메타 적립. 영구 메타 보호 위해 cloud 백업이 유용.
-  if (isSignedIn()) {
+  if (isSignedIn() && !isAnonymousUser()) {
     const cloudBtn = document.createElement("button");
     cloudBtn.type = "button";
     cloudBtn.textContent = t("cloud.saveBtn");

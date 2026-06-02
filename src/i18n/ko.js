@@ -476,6 +476,8 @@ export const ko = {
     notSignedIn:    "로그인 대기 중...",
     notFound:       "클라우드 세이브가 없습니다",
     noLocalSave:    "저장할 로컬 세이브가 없습니다",
+    signInToSave:   "Google 로그인 후 클라우드 저장이 가능합니다 (기기 간 동기화).",
+    signInHint:     "기기 간 동기화하려면 Google 로그인이 필요합니다",
     saveFailed:     "저장 실패",
     loadFailed:     "불러오기 실패",
     confirmOverwriteLocal: "로컬 세이브가 클라우드보다 더 최근입니다. 클라우드 데이터로 덮어쓰시겠습니까?",

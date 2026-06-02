@@ -307,6 +307,10 @@ function renderCloudPanel(route) {
   panel.className = "panel";
   panel.style.padding = "10px";
 
+  // 익명(미로그인) 상태에서는 클라우드 저장 비활성 — 익명 uid 는 기기 종속이라 다른 기기에서 못 불러옴.
+  // Google 로그인해야 기기 간 동기화가 되므로 저장 자체를 막는다.
+  const anon = isAnonymousUser();
+
   const row = document.createElement("div");
   row.style.cssText = "display:grid; grid-template-columns:1fr 1fr; gap:8px;";
 
@@ -316,8 +320,9 @@ function renderCloudPanel(route) {
   saveBtn.className = "primary";
   saveBtn.textContent = t("cloud.saveBtn");
   saveBtn.style.cssText = "padding:10px 8px; font-size:12px; font-weight:700;";
-  saveBtn.disabled = !hasSave();
+  saveBtn.disabled = !hasSave() || anon;
   saveBtn.addEventListener("click", async () => {
+    if (anon) { alert(t("cloud.signInToSave")); return; }
     if (!hasSave()) { alert(t("cloud.noLocalSave")); return; }
     saveBtn.disabled = true;
     saveBtn.textContent = t("cloud.saving");
@@ -372,6 +377,15 @@ function renderCloudPanel(route) {
   row.appendChild(loadBtn);
 
   panel.appendChild(row);
+
+  // 익명이면 안내 — Google 로그인해야 기기 간 동기화/저장 가능.
+  if (anon) {
+    const hint = document.createElement("div");
+    hint.className = "muted small";
+    hint.style.cssText = "margin-top:6px; font-size:10.5px; line-height:1.3;";
+    hint.textContent = t("cloud.signInHint");
+    panel.appendChild(hint);
+  }
   return panel;
 }
 
