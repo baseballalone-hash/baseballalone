@@ -104,6 +104,15 @@ export function route(name, opts = {}) {
   // 뷰가 실제로 바뀌었을 때만 상단으로 리셋.
   const isViewChange = state.view !== name;
   state.view = name;
+  // 뷰가 실제로 바뀔 때, document.body 에 남은 모달 backdrop 제거.
+  // 모달은 자기 버튼으로만 닫히므로, 브라우저/안드로이드 뒤로가기로 화면을 벗어나면
+  // backdrop(position:fixed; inset:0; z-index:1000) 이 body 에 그대로 남아 다음 화면 전체
+  // 클릭을 가로챈다(이어하기·새 게임 먹통). 뷰 전환 시점의 잔존 모달은 항상 스테일이므로 정리.
+  //   - tick 재렌더(같은 뷰)는 건드리지 않아 경기 중 모달(결승/이벤트/훈련전환) 보존.
+  //   - route() 반환 후 추가되는 모달(승격/강등 등)은 이 정리 이후라 보존.
+  if (isViewChange) {
+    for (const el of document.querySelectorAll("body > .modal-backdrop")) el.remove();
+  }
   // 뷰 전환 시 BGM 곡 교체 (같은 곡이면 audio.js 가 무시).
   if (isViewChange && VIEW_BGM[name]) playBgm(VIEW_BGM[name]);
   const fn = VIEWS[name] ?? VIEWS.menu;

@@ -534,6 +534,16 @@ KBO에서 MLB로 가는 경로가 없던 것 → 실제 규정 모델로 추가.
 
 검증: `node --check` 4파일(`auth.js`/`main.js`/`firebaseConfig.js` + 무변경 확인) 통과. authDomain·로그인 카드·모바일 redirect 는 배포/실기 확인 대기.
 
+### v0.7.13 fix ✓ — 뒤로가기 모달 고아 + 시작화면 배경/클라우드 저장·불러오기
+
+| 영역 | 작업 |
+|---|---|
+| **fix — 뒤로가기 후 이어하기·새 게임 먹통** (`main.js`) | FA 오퍼 등 모달은 `document.body` 에 `.modal-backdrop`(position:fixed; inset:0; z-index:1000)로 붙고 자기 버튼으로만 닫힘. 브라우저/안드로이드 뒤로가기로 모달을 벗어나면 backdrop 이 body 에 남아 다음 화면 전체 클릭을 가로채던 게 "이어하기·새 게임 모두 먹통"의 원인. `route()` 에 **뷰 전환 시(`isViewChange`) 잔존 backdrop 제거** 추가. tick 재렌더(같은 뷰)·route 반환 후 추가 모달(승격/강등)은 보존. |
+| **시작화면 배경 이미지 + 하단 버튼 1스크린** (`menu.js` + `main.css`) | 시작화면을 `#view-root` 를 정확히 채우는 풀스크린 컨테이너로 재구성. `titleHero` 를 `object-fit:cover` 전면 배경 + 하단 가독성 그라데이션, 타이틀 상단·버튼 하단 고정, 넘치면 액션 영역만 내부 스크롤 → 무스크롤 1화면. 에셋 없으면 그라데이션 폴백. `#view-root{position:relative}` + `.start-*` 클래스 추가. |
+| **클라우드 저장+불러오기 시작화면 노출** (`menu.js`) | 기존엔 로컬 세이브 없을 때만 "불러오기" 노출·저장 버튼 없음. 로그인 시 **☁️ 저장 / ☁️ 불러오기** 2버튼(`renderCloudPanel`) 항상 노출. 저장은 로컬 세이브 있을 때만 활성(`saveGame`→`saveToCloud`), 불러오기는 로컬이 60초+ 더 새것이면 덮어쓰기 confirm. |
+
+검증: `node --check src/main.js src/views/menu.js` 통과. 레이아웃·뒤로가기 거동·클라우드 동작은 안드로이드 실기 확인 대기(샌드박스 브라우저 없음).
+
 **자동 검증** (회귀·밸런스): `node probe.mjs` + `node probe-career.mjs` — 실행 방법 §시뮬레이션 돌려보기 참고.
 
 **수동 시나리오** (브라우저 UX 확인):

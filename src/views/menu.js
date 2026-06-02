@@ -7,7 +7,7 @@ import { state, hasSave, loadGame, deleteSave, saveGame, resetState, resetAllDat
 import { createPlayer, TALENTS } from "../systems/player.js";
 import { startHighSchoolCareer } from "../systems/career.js";
 import { consumeLoadoutForCharacter, loadRegressionMeta } from "../systems/regression.js";
-import { loadFromCloud, getCloudSaveMeta, deleteFromCloud } from "../cloud/cloudSave.js";
+import { saveToCloud, loadFromCloud, getCloudSaveMeta, deleteFromCloud } from "../cloud/cloudSave.js";
 import { isSignedIn, isAnonymousUser, linkAnonToGoogle, signOutCloud } from "../cloud/auth.js";
 import { FACES, createFaceSVG } from "../render/avatars.js";
 import { createCharacterSVG } from "../render/character.js";
@@ -71,19 +71,19 @@ function relativeTime(ts) {
 let startLoadingDone = false;
 export function renderStart(root, route) {
   root.innerHTML = "";
-  const wrap = document.createElement("div");
-  wrap.className = "stack";
-  root.appendChild(wrap);
 
   if (startLoadingDone) {
-    buildStartMenu(wrap, route);
+    buildStartMenu(root, route);
     return;
   }
   // 로딩 연출 (1회) — 로고 + 스피너, 잠시 후 타이틀 메뉴로 전환.
+  const wrap = document.createElement("div");
+  wrap.className = "stack";
+  root.appendChild(wrap);
   buildLoadingPhase(wrap);
   setTimeout(() => {
     startLoadingDone = true;
-    if (state.view === "start") { wrap.innerHTML = ""; buildStartMenu(wrap, route); }
+    if (state.view === "start") { root.innerHTML = ""; buildStartMenu(root, route); }
   }, 900);
 }
 
@@ -120,33 +120,73 @@ function buildLoadingPhase(wrap) {
   wrap.appendChild(box);
 }
 
-function buildStartMenu(wrap, route) {
+function buildStartMenu(root, route) {
   ensureSpinnerStyle();
-  // 로고/타이틀 일러스트 — 에셋 있으면 이미지, 없으면 로고 텍스트로 폴백.
-  const hero = document.createElement("div");
-  hero.style.cssText = "text-align:center; margin:14px 0 4px; animation:nir-fade .4s ease;";
-  const art = createImage("titleHero", {
+
+  // 풀스크린 컨테이너 — 배경 이미지 + 하단 버튼, view-root 를 정확히 채워 무스크롤.
+  const screen = document.createElement("div");
+  screen.className = "start-screen";
+
+  // 1) 배경 이미지 (없으면 그라데이션 폴백). object-fit:cover 로 전면.
+  const bg = createImage("titleHero", {
     alt: t("app.logo"),
-    style: "max-width:280px; margin:0 auto; border-radius:10px; overflow:hidden;",
+    className: "start-bg",
+    // createImage 가 인라인으로 height:auto 를 주므로 imgStyle 로 height:100%+cover 를 덮어씀(인라인 우선).
+    imgStyle: "height:100%; object-fit:cover;",
     fallback: () => {
-      const logo = document.createElement("div");
-      logo.textContent = t("app.logo");
-      logo.style.cssText = "font-size:30px; font-weight:800; color:var(--accent); letter-spacing:1px;";
-      return logo;
+      const d = document.createElement("div");
+      d.style.cssText = "position:absolute; inset:0; background:radial-gradient(120% 80% at 50% 0%, #1b2940 0%, #0e1116 70%);";
+      return d;
     },
   });
-  hero.appendChild(art);
+  screen.appendChild(bg);
+
+  // 2) 하단 가독성 오버레이
+  const overlay = document.createElement("div");
+  overlay.className = "start-overlay";
+  screen.appendChild(overlay);
+
+  // 3) 상단 타이틀
+  const title = document.createElement("div");
+  title.className = "start-title";
+  title.style.animation = "nir-fade .4s ease";
+  const logo = document.createElement("div");
+  logo.className = "logo-text";
+  logo.textContent = t("app.logo");
+  title.appendChild(logo);
   const tag = document.createElement("div");
-  tag.className = "muted small";
-  tag.style.cssText = "margin-top:4px; font-size:12px;";
+  tag.className = "tagline";
   tag.textContent = t("menu.tagline");
-  hero.appendChild(tag);
-  wrap.appendChild(hero);
+  title.appendChild(tag);
+  screen.appendChild(title);
 
-  // 로그인 상태
-  if (isSignedIn()) wrap.appendChild(renderAuthPanel(route));
+  // 4) 하단 액션 묶음
+  const actions = document.createElement("div");
+  actions.className = "start-actions";
 
-  // 시작 버튼 — 세이브 있으면 이어하기 + 새 게임, 없으면 게임 시작
+  // 로그인 상태 (로그인 시)
+  if (isSignedIn()) actions.appendChild(renderAuthPanel(route));
+
+  // 이어하기 + 새 게임 (없으면 게임 시작)
+  actions.appendChild(renderStartButtons(route));
+
+  // 클라우드 저장 + 불러오기 (로그인 시)
+  if (isSignedIn()) actions.appendChild(renderCloudPanel(route));
+
+  // 회귀 상점 진입 (적립 있을 때)
+  const m = state.regression;
+  if (m && (m.totalEarned > 0 || m.balance > 0 || m.runs > 0)) {
+    actions.appendChild(renderShopEntryPanel(route));
+  }
+  // 데이터 초기화 (작은 링크)
+  actions.appendChild(renderResetPanel(route));
+
+  screen.appendChild(actions);
+  root.appendChild(screen);
+}
+
+// 시작 버튼 패널 — 세이브 있으면 이어하기 + 새 게임, 없으면 게임 시작.
+function renderStartButtons(route) {
   const startPanel = document.createElement("section");
   startPanel.className = "panel";
   startPanel.style.padding = "12px";
@@ -154,6 +194,7 @@ function buildStartMenu(wrap, route) {
     const cont = button(t("menu.continueBtn"), "primary", () => {
       sfx("good");
       if (loadGame()) { resetWeeklyCarousel(); route("weekly"); }
+      else alert(t("cloud.loadFailed"));   // 세이브 손상 등으로 로드 실패 시 안내
     });
     cont.style.cssText = "width:100%; padding:13px; font-size:16px; font-weight:700; margin-bottom:8px;";
     startPanel.appendChild(cont);
@@ -173,19 +214,7 @@ function buildStartMenu(wrap, route) {
     startBtn.style.cssText = "width:100%; padding:13px; font-size:16px; font-weight:700;";
     startPanel.appendChild(startBtn);
   }
-  wrap.appendChild(startPanel);
-
-  // 회귀 상점 진입 (적립 있을 때)
-  const m = state.regression;
-  if (m && (m.totalEarned > 0 || m.balance > 0 || m.runs > 0)) {
-    wrap.appendChild(renderShopEntryPanel(route));
-  }
-  // 클라우드 불러오기 (로컬 세이브 없고 로그인 시)
-  if (!hasSave() && isSignedIn()) {
-    wrap.appendChild(renderCloudLoadPanel(route));
-  }
-  // 데이터 초기화 (작은 링크)
-  wrap.appendChild(renderResetPanel(route));
+  return startPanel;
 }
 
 export function renderMenu(root, route) {
@@ -270,34 +299,68 @@ function renderAuthPanel(route) {
   return panel;
 }
 
-function renderCloudLoadPanel(route) {
+// 클라우드 저장 + 불러오기 패널 — 로그인 시 시작화면에 항상 노출.
+//   저장: 로컬 세이브가 있을 때만 활성 (saveGame → saveToCloud, 1 write).
+//   불러오기: 클라우드 → 로컬 덮어쓰기 후 새로고침. 로컬이 60초+ 더 새것이면 confirm.
+function renderCloudPanel(route) {
   const panel = document.createElement("section");
   panel.className = "panel";
   panel.style.padding = "10px";
 
   const row = document.createElement("div");
-  row.style.cssText = "display:flex; align-items:center; gap:8px;";
+  row.style.cssText = "display:grid; grid-template-columns:1fr 1fr; gap:8px;";
 
-  const label = document.createElement("div");
-  label.className = "muted small";
-  label.style.cssText = "flex:1; font-size:11px;";
-  label.textContent = t("cloud.loadBtn");
-  row.appendChild(label);
+  // ☁️ 저장
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "primary";
+  saveBtn.textContent = t("cloud.saveBtn");
+  saveBtn.style.cssText = "padding:10px 8px; font-size:12px; font-weight:700;";
+  saveBtn.disabled = !hasSave();
+  saveBtn.addEventListener("click", async () => {
+    if (!hasSave()) { alert(t("cloud.noLocalSave")); return; }
+    saveBtn.disabled = true;
+    saveBtn.textContent = t("cloud.saving");
+    saveGame();
+    const r = await saveToCloud();
+    if (r.ok) {
+      cloudMetaCache = null;   // 메타 캐시 무효화 — 다음 비교가 최신 반영
+      saveBtn.textContent = t("cloud.saveSuccess");
+      setTimeout(() => { saveBtn.textContent = t("cloud.saveBtn"); saveBtn.disabled = false; }, 1600);
+    } else {
+      saveBtn.textContent = t("cloud.saveBtn");
+      saveBtn.disabled = false;
+      const reasonMap = {
+        no_local_save: t("cloud.noLocalSave"),
+        firebase_not_ready: t("cloud.notReady"),
+        not_signed_in: t("cloud.notSignedIn"),
+      };
+      alert(reasonMap[r.reason] ?? t("cloud.saveFailed"));
+    }
+  });
+  row.appendChild(saveBtn);
 
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "primary";
-  btn.textContent = t("cloud.loadBtn");
-  btn.style.cssText = "padding:8px 12px; font-size:12px; font-weight:700;";
-  btn.addEventListener("click", async () => {
-    btn.disabled = true;
-    btn.textContent = t("cloud.loading");
+  // ☁️ 불러오기
+  const loadBtn = document.createElement("button");
+  loadBtn.type = "button";
+  loadBtn.textContent = t("cloud.loadBtn");
+  loadBtn.style.cssText = "padding:10px 8px; font-size:12px; font-weight:700;";
+  loadBtn.addEventListener("click", async () => {
+    // 로컬이 클라우드보다 명백히 더 새것이면(60초+) 덮어쓰기 confirm.
+    const meta = cloudMetaCache ?? await getCloudSaveMeta();
+    cloudMetaCache = meta;
+    const localTs = getLocalSavedAt();
+    if (meta?.exists && localTs && meta.clientLastSaved && localTs > meta.clientLastSaved + 60000) {
+      if (!confirm(t("cloud.confirmOverwriteLocal"))) return;
+    }
+    loadBtn.disabled = true;
+    loadBtn.textContent = t("cloud.loading");
     const result = await loadFromCloud();
     if (result.ok) {
       location.reload();
     } else {
-      btn.disabled = false;
-      btn.textContent = t("cloud.loadBtn");
+      loadBtn.disabled = false;
+      loadBtn.textContent = t("cloud.loadBtn");
       const reasonMap = {
         not_found: t("cloud.notFound"),
         firebase_not_ready: t("cloud.notReady"),
@@ -306,7 +369,7 @@ function renderCloudLoadPanel(route) {
       alert(reasonMap[result.reason] ?? t("cloud.loadFailed"));
     }
   });
-  row.appendChild(btn);
+  row.appendChild(loadBtn);
 
   panel.appendChild(row);
   return panel;

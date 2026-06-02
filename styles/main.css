@@ -204,6 +204,74 @@ html, body {
   overflow-y: auto;     /* 본문만 스크롤 */
   -webkit-overflow-scrolling: touch;
   padding: 18px 0;
+  position: relative;   /* 시작화면(.start-screen) absolute inset 기준 */
+}
+
+/* 시작 화면 — 배경 이미지 풀블리드 + 하단 버튼, 한 화면 무스크롤.
+   view-root 의 padding(18px 0) 을 무시하고 inset:0 으로 정확히 채워 스크롤이 없도록. */
+.start-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.start-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.start-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* 하단 가독성 — 이미지 위로 어두운 그라데이션 */
+.start-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(to bottom, rgba(14,17,22,0.15) 0%, rgba(14,17,22,0.05) 35%, rgba(14,17,22,0.78) 78%, rgba(14,17,22,0.95) 100%);
+}
+.start-title {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 22px 16px 0;
+  flex-shrink: 0;
+}
+.start-title .logo-text {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 1px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+}
+.start-title .tagline {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.85;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+}
+/* 하단 액션 — 버튼 묶음을 바닥에 고정, 넘치면 이 영역만 스크롤 */
+.start-actions {
+  position: relative;
+  z-index: 2;
+  margin-top: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 72%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.start-actions .panel {
+  margin: 0;
+  background: rgba(22,27,34,0.82);
+  backdrop-filter: blur(3px);
 }
 
 /* Buttons */
