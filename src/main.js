@@ -211,7 +211,8 @@ function init() {
   loadRegressionMeta();
   // Firebase Auth/Firestore 부팅 — firebaseConfig 비어있으면 silently 스킵.
   if (initFirebase()) {
-    initAuth();
+    // 인증 상태가 늦게 도착하면(첫 익명 로그인 등) 시작화면을 다시 그려 로그인 카드를 노출.
+    initAuth(() => { if (state.view === "start") route("start"); });
   }
   updateChrome();
   wireSettingsButton();

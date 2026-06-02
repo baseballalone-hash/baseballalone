@@ -524,6 +524,15 @@ KBO에서 MLB로 가는 경로가 없던 것 → 실제 규정 모델로 추가.
 
 검증: `node probe.mjs` 전체 통과. 고교(52)·MLB(162) 시즌 자동 종료·경기수 Node 재현, 재능 배수·멘토편지 ×1.2·리그별 경기수 실측 확인. auth/마지막주 멈춤은 DOM/런타임 의존이라 실기 확인 필요.
 
+### v0.7.12 fix ✓ — 구글 로그인 authDomain 정렬 · 시작화면 로그인 카드 레이스
+
+| 영역 | 작업 |
+|---|---|
+| **fix(auth) — 구글 로그인 authDomain 서빙 도메인 정렬** (`firebaseConfig.js`) | 배포 사이트(web.app)에서 로그인이 "계정 선택만 반복하다 실패". 페이지 오리진(web.app) ≠ `authDomain`(firebaseapp.com) 크로스 오리진 로그인 핸들러(`/__/auth/handler`) + Chrome 서드파티 저장소 차단으로 결과 릴레이가 끊긴 게 원인. `authDomain` → `baseball-alone.web.app` 으로 정렬해 핸들러를 first-party 화. (web.app 배포 한정 해결 — localhost 는 여전히 크로스 오리진. 배포 후 실기 확인 대기. redirect URI 미승인 시 `redirect_uri_mismatch` 가능 → Google Cloud OAuth 클라이언트에 `https://baseball-alone.web.app/__/auth/handler` 추가.) |
+| **fix(auth) — 시작화면 로그인 카드 비동기 인증 레이스** (`auth.js` + `main.js`) | 첫 진입 시 익명 로그인(네트워크 왕복)이 메뉴 최초 렌더보다 늦게 끝나 로그인 카드가 안 뜨고 새로고침해야 보이던 문제. `initAuth(onAuthChange)` 콜백 추가 → 인증 상태 도착 시 `start` 뷰 재렌더(같은 뷰라 스크롤 유지). |
+
+검증: `node --check` 3파일 통과. authDomain·로그인 카드 노출은 배포/런타임 실기 확인 대기.
+
 **자동 검증** (회귀·밸런스): `node probe.mjs` + `node probe-career.mjs` — 실행 방법 §시뮬레이션 돌려보기 참고.
 
 **수동 시나리오** (브라우저 UX 확인):

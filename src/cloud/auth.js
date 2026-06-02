@@ -19,7 +19,10 @@ import { getFirebaseAuth, isFirebaseReady } from "./firebase.js";
 // "link" 시도가 credential-already-in-use 로 실패하면 자동으로 signInWithRedirect 로 fallback.
 const REDIRECT_INTENT_KEY = "ninthinning.authRedirectIntent";
 
-export function initAuth() {
+// onAuthChange: 인증 상태(state.cloudUser)가 갱신될 때마다 호출되는 콜백.
+//   첫 진입 시 익명 로그인은 네트워크 왕복이라 메뉴 최초 렌더보다 늦게 끝난다.
+//   콜백으로 현재 뷰를 다시 그려야 로그인 카드가 새로고침 없이 바로 뜬다.
+export function initAuth(onAuthChange) {
   if (!isFirebaseReady()) return;
   const auth = getFirebaseAuth();
 
@@ -63,6 +66,7 @@ export function initAuth() {
         console.error("[cloud] 익명 로그인 실패", e);
       });
     }
+    onAuthChange?.(state.cloudUser);
   });
 }
 

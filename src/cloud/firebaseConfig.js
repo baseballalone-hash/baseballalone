@@ -7,7 +7,9 @@
 // 실제 보호는 Firestore 보안 규칙으로 — 다른 사용자의 데이터 read/write 차단.
 export const firebaseConfig = {
   apiKey:            "AIzaSyDvNBgr4Q_gYvHeQpmWl4U2EluG9-PaKfA",
-  authDomain:        "baseball-alone.firebaseapp.com",
+  // 서빙 도메인(web.app)과 일치시켜야 로그인 핸들러(/__/auth/handler)가 first-party가 된다.
+  // firebaseapp.com 으로 두면 web.app 에서 크로스 오리진 → Chrome 서드파티 저장소 차단으로 로그인 실패.
+  authDomain:        "baseball-alone.web.app",
   projectId:         "baseball-alone",
   storageBucket:     "baseball-alone.firebasestorage.app",
   messagingSenderId: "126672611400",
