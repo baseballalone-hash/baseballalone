@@ -4,7 +4,7 @@
 > 진행 중 작업/결정사항은 `.claude/handoff.md`, 영속적인 개발·테스트 절차는 이 문서.
 
 ## 0. 한 줄 요약
-빌드 없음 · Vanilla JS(ESM) · SVG 코드생성 · localStorage 세이브 · 정적 호스팅(Firebase) · i18n(ko/en).
+빌드 없음 · Vanilla JS(ESM) · SVG 코드생성 · localStorage 세이브(+Firebase 클라우드) · 정적 호스팅(Firebase) · i18n(en 기본/ko) · 광고 GameMonetize SDK.
 `index.html` 정적 서빙만으로 동작. `main` 푸시 시 GitHub Actions → Firebase Hosting 자동 배포(https://baseball-alone.web.app).
 
 ---
