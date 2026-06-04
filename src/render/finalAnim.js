@@ -466,108 +466,127 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
 
     } else {
       // ────────────── 투수 모드 (직접 타이밍 투구 조작) ──────────────
-      const duration = 1000;
-      
-      // 타이밍 링 생성 및 오버레이 렌더
-      const ring = svgEl("circle", {
-        cx: 160, cy: ZONE.y + ZONE.h / 2, r: 60, fill: "none",
-        stroke: "var(--accent-2)", "stroke-width": 3, opacity: 0.8,
-        style: "transition: r 1000ms linear;"
-      });
-      svg.appendChild(ring);
-      
-      showLabel(labelHost, "RELEASE!", "var(--accent)");
+      return showPitchingSelector(container, state.player).then((selectorResult) => {
+        // Fastball은 링이 빠르고 변화구는 조금 느림
+        const isFastball = selectorResult.pitch === "Fastball";
+        const duration = isFastball ? 800 : 1100;
+        
+        // 타이밍 링 생성 및 오버레이 렌더
+        const ring = svgEl("circle", {
+          cx: 160, cy: ZONE.y + ZONE.h / 2, r: 60, fill: "none",
+          stroke: "var(--accent-2)", "stroke-width": 3, opacity: 0.8,
+          style: `transition: r ${duration}ms linear;`
+        });
+        svg.appendChild(ring);
+        
+        showLabel(labelHost, "RELEASE!", "var(--accent)");
 
-      const pitchStartTime = Date.now();
-      let releaseTriggered = false;
-      let clickTime = 0;
+        const pitchStartTime = Date.now();
+        let releaseTriggered = false;
+        let clickTime = 0;
 
-      // 링 크기 축소 애니메이션 프레임
-      const ringFrame = () => {
-        if (!isInteractiveActive || releaseTriggered) return;
-        const elapsed = Date.now() - pitchStartTime;
-        const p = Math.min(1.0, elapsed / duration);
-        const r = 60 - (60 - 15) * p;
-        ring.setAttribute("r", r.toFixed(1));
-        if (p < 1.0) {
-          requestAnimationFrame(ringFrame);
-        }
-      };
-      requestAnimationFrame(ringFrame);
-
-      return new Promise(resolve => {
-        const onRelease = () => {
-          if (releaseTriggered) return;
-          releaseTriggered = true;
-          clickTime = Date.now();
-          container.removeEventListener("click", onRelease);
-          ring.remove();
-
-          const elapsed = clickTime - pitchStartTime;
-          const p = elapsed / duration;
-
-          const controlStat = state.player?.control ?? 50;
-          const perfectWin = 0.05 + (controlStat - 50) * 0.0003;
-          const groupWin = 0.14 + (controlStat - 50) * 0.0006;
-
-          let finalResult = "1B";
-          let feedbackText = "MEATBALL!";
-          let feedbackColor = "var(--bad)";
-
-          if (Math.abs(p - 0.82) <= perfectWin / 2) {
-            finalResult = Math.random() < 0.65 ? "K" : "OUT";
-            feedbackText = "PERFECT PITCH!";
-            feedbackColor = "var(--accent-2)";
-            sfx("good");
-          } else if (Math.abs(p - 0.82) <= groupWin / 2) {
-            finalResult = Math.random() < 0.65 ? "OUT" : "1B";
-            feedbackText = "GOOD PITCH!";
-            feedbackColor = "var(--accent)";
-          } else if (p >= 0.58 && p <= 1.04) {
-            finalResult = Math.random() < 0.5 ? "1B" : "2B";
-            feedbackText = p < 0.82 ? "EARLY RELEASE!" : "LATE RELEASE!";
-            feedbackColor = "var(--warn)";
-          } else {
-            finalResult = Math.random() < 0.4 ? "HR" : "1B";
-            feedbackText = "MEATBALL!";
-            feedbackColor = "var(--bad)";
+        // 링 크기 축소 애니메이션 프레임
+        const ringFrame = () => {
+          if (!isInteractiveActive || releaseTriggered) return;
+          const elapsed = Date.now() - pitchStartTime;
+          const p = Math.min(1.0, elapsed / duration);
+          const r = 60 - (60 - 15) * p;
+          ring.setAttribute("r", r.toFixed(1));
+          if (p < 1.0) {
+            requestAnimationFrame(ringFrame);
           }
-
-          updateEventResult(event, finalResult);
-          hideLabel(labelHost);
-          showLabel(labelHost, feedbackText, feedbackColor);
-
-          // 투구 시작
-          sfx("pitch");
-          if (swingRef.fg) throwPush(swingRef);
-
-          const spec = PLAYBOOK[finalResult] ?? PLAYBOOK.OUT;
-          const { contact, final } = pickEndPoint(spec);
-
-          animateBall(ball, start, { x: contact.x, y: contact.y, r: 5 }, 380)
-            .then(() => {
-              if (spec.swing && (swingRef.fg || swingRef.bat)) {
-                swingBat(swingRef);
-              }
-              playResultSfx(finalResult);
-              return animateBall(ball, { x: contact.x, y: contact.y, r: 5 }, final, 700);
-            })
-            .then(() => {
-              if (spec.firework) {
-                spawnFireworks(fxHost ?? svg);
-                return waitMs(900);
-              }
-              return waitMs(220);
-            })
-            .then(() => {
-              ball.style.opacity = "0";
-              hideLabel(labelHost);
-              isInteractiveActive = false;
-              resolve();
-            });
         };
+        requestAnimationFrame(ringFrame);
 
-        container.addEventListener("click", onRelease);
+        return new Promise(resolve => {
+          const onRelease = () => {
+            if (releaseTriggered) return;
+            releaseTriggered = true;
+            clickTime = Date.now();
+            container.removeEventListener("click", onRelease);
+            ring.remove();
+
+            const elapsed = clickTime - pitchStartTime;
+            const p = elapsed / duration;
+
+            const controlStat = state.player?.control ?? 50;
+            const perfectWin = 0.05 + (controlStat - 50) * 0.0003;
+            const groupWin = 0.14 + (controlStat - 50) * 0.0006;
+
+            const isCorner = [0, 2, 6, 8].includes(selectorResult.zone);
+            const isCenter = selectorResult.zone === 4;
+
+            let finalResult = "1B";
+            let feedbackText = "MEATBALL!";
+            let feedbackColor = "var(--bad)";
+
+            if (Math.abs(p - 0.82) <= perfectWin / 2) {
+              if (isCorner) {
+                finalResult = Math.random() < 0.85 ? "K" : "OUT";
+              } else if (isCenter) {
+                finalResult = Math.random() < 0.50 ? "K" : (Math.random() < 0.80 ? "OUT" : "1B");
+              } else {
+                finalResult = Math.random() < 0.70 ? "K" : "OUT";
+              }
+              feedbackText = `PERFECT ${selectorResult.pitch.toUpperCase()}!`;
+              feedbackColor = "var(--accent-2)";
+              sfx("good");
+            } else if (Math.abs(p - 0.82) <= groupWin / 2) {
+              if (isCorner) {
+                finalResult = Math.random() < 0.75 ? "OUT" : "1B";
+              } else {
+                finalResult = Math.random() < 0.60 ? "OUT" : "1B";
+              }
+              feedbackText = `GOOD ${selectorResult.pitch.toUpperCase()}!`;
+              feedbackColor = "var(--accent)";
+            } else if (p >= 0.58 && p <= 1.04) {
+              const outChance = isCorner ? 0.30 : 0.45;
+              finalResult = Math.random() < outChance ? "OUT" : (Math.random() < 0.75 ? "1B" : "2B");
+              feedbackText = p < 0.82 ? "EARLY RELEASE!" : "LATE RELEASE!";
+              feedbackColor = "var(--warn)";
+            } else {
+              const hrChance = isCorner ? 0.45 : 0.30;
+              finalResult = Math.random() < hrChance ? "HR" : "1B";
+              feedbackText = "MEATBALL!";
+              feedbackColor = "var(--bad)";
+            }
+
+            updateEventResult(event, finalResult);
+            hideLabel(labelHost);
+            showLabel(labelHost, feedbackText, feedbackColor);
+
+            // 투구 시작
+            sfx("pitch");
+            if (swingRef.fg) throwPush(swingRef);
+
+            const spec = PLAYBOOK[finalResult] ?? PLAYBOOK.OUT;
+            const { contact, final } = pickEndPoint(spec);
+
+            animateBall(ball, start, { x: contact.x, y: contact.y, r: 5 }, 380)
+              .then(() => {
+                if (spec.swing && (swingRef.fg || swingRef.bat)) {
+                  swingBat(swingRef);
+                }
+                playResultSfx(finalResult);
+                return animateBall(ball, { x: contact.x, y: contact.y, r: 5 }, final, 700);
+              })
+              .then(() => {
+                if (spec.firework) {
+                  spawnFireworks(fxHost ?? svg);
+                  return waitMs(900);
+                }
+                return waitMs(220);
+              })
+              .then(() => {
+                ball.style.opacity = "0";
+                hideLabel(labelHost);
+                isInteractiveActive = false;
+                resolve();
+              });
+          };
+
+          container.addEventListener("click", onRelease);
+
 
         // 미조작 시 자동 실투
         setTimeout(() => {
@@ -813,3 +832,87 @@ export function pulseDiamondHome(diamondSvg) {
   }
   requestAnimationFrame(frame);
 }
+
+function showPitchingSelector(container, player) {
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:absolute; inset:0; background:rgba(0,0,0,0.85); z-index:100; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:8px; color:var(--text); font-family:inherit; padding:8px;";
+    
+    // 타이틀
+    const title = document.createElement("div");
+    title.style.cssText = "font-size:12px; font-weight:700; color:var(--accent-2); margin-bottom:2px;";
+    title.textContent = t("weekly.pitchSelectorTitle") || "Select Pitch & Location";
+    overlay.appendChild(title);
+
+    let selectedPitch = null;
+    let selectedZone = null;
+
+    // 1) 구종 선택 행
+    const pitchHeader = document.createElement("div");
+    pitchHeader.style.cssText = "font-size:9.5px; color:var(--muted); font-weight:700;";
+    pitchHeader.textContent = t("weekly.selectPitchType") || "1. Pitch Type";
+    overlay.appendChild(pitchHeader);
+
+    const pitchRow = document.createElement("div");
+    pitchRow.style.cssText = "display:flex; gap:3px; flex-wrap:wrap; justify-content:center;";
+    
+    const pitches = (player && player.pitches && player.pitches.length > 0) 
+      ? player.pitches.map(p => p.name || p) 
+      : ["Fastball"];
+
+    pitches.forEach(pName => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = t(pName.toLowerCase()) || pName;
+      btn.style.cssText = "padding:4px 8px; font-size:10px; min-width:55px; line-height:1.2;";
+      btn.addEventListener("click", () => {
+        selectedPitch = pName;
+        for (const child of pitchRow.children) child.classList.remove("primary");
+        btn.classList.add("primary");
+        checkComplete();
+      });
+      pitchRow.appendChild(btn);
+    });
+    overlay.appendChild(pitchRow);
+
+    // 2) 스트라이크 존 9분할 그리드
+    const zoneHeader = document.createElement("div");
+    zoneHeader.style.cssText = "font-size:9.5px; color:var(--muted); font-weight:700; margin-top:2px;";
+    zoneHeader.textContent = t("weekly.selectPitchLocation") || "2. Pitch Location";
+    overlay.appendChild(zoneHeader);
+
+    const zoneGrid = document.createElement("div");
+    zoneGrid.style.cssText = "display:grid; grid-template-columns:repeat(3, 1fr); gap:3px; width:110px; height:110px; background:rgba(255,255,255,0.05); border:1.5px solid var(--border); padding:3px; border-radius:6px;";
+
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement("div");
+      cell.style.cssText = "border:1px dashed rgba(255,255,255,0.15); cursor:pointer; transition:background 120ms; border-radius:3px; display:flex; justify-content:center; align-items:center;";
+      
+      cell.addEventListener("click", () => {
+        selectedZone = i;
+        for (const child of zoneGrid.children) {
+          child.style.background = "transparent";
+          child.style.borderColor = "rgba(255,255,255,0.15)";
+        }
+        cell.style.background = "rgba(255,184,78,0.22)";
+        cell.style.borderColor = "var(--accent-2)";
+        checkComplete();
+      });
+      zoneGrid.appendChild(cell);
+    }
+    overlay.appendChild(zoneGrid);
+
+    // 완료 체크
+    function checkComplete() {
+      if (selectedPitch !== null && selectedZone !== null) {
+        setTimeout(() => {
+          overlay.remove();
+          resolve({ pitch: selectedPitch, zone: selectedZone });
+        }, 300);
+      }
+    }
+
+    container.appendChild(overlay);
+  });
+}
+

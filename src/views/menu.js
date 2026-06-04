@@ -9,7 +9,10 @@ import { startHighSchoolCareer } from "../systems/career.js";
 import { consumeLoadoutForCharacter, loadRegressionMeta } from "../systems/regression.js";
 import { saveToCloud, loadFromCloud, getCloudSaveMeta, deleteFromCloud } from "../cloud/cloudSave.js";
 import { isSignedIn, isAnonymousUser, linkAnonToGoogle, signOutCloud } from "../cloud/auth.js";
-import { FACES, createFaceSVG } from "../render/avatars.js";
+import {
+  FACES, createFaceSVG,
+  SKIN_COLORS, HAIR_COLORS, HAIR_STYLES, ACCESSORIES, EYES,
+} from "../render/avatars.js";
 import { createCharacterSVG } from "../render/character.js";
 import { createGameDate } from "../systems/tick.js";
 import { t, getLocale } from "../i18n/index.js";
@@ -172,6 +175,9 @@ function buildStartMenu(root, route) {
 
   // 클라우드 저장 + 불러오기 (로그인 시)
   if (isSignedIn()) actions.appendChild(renderCloudPanel(route));
+
+  // 명예의 전당 박물관 진입
+  actions.appendChild(renderHallOfFameMuseumPanel(route));
 
   // 회귀 상점 진입 (적립 있을 때)
   const m = state.regression;
@@ -455,6 +461,39 @@ function renderShopEntryPanel(route) {
   btn.textContent = t("regression.enterShop");
   btn.style.cssText = "padding:10px 12px; font-size:12px; font-weight:700; flex-shrink:0;";
   btn.addEventListener("click", () => route("shop"));
+  row.appendChild(btn);
+
+  panel.appendChild(row);
+  return panel;
+}
+
+function renderHallOfFameMuseumPanel(route) {
+  const panel = document.createElement("section");
+  panel.className = "panel";
+  panel.style.padding = "10px";
+
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:8px;";
+
+  const left = document.createElement("div");
+  left.style.cssText = "flex:1; min-width:0;";
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:700; font-size:13px; color:var(--accent-2); margin-bottom:2px;";
+  title.textContent = t("hof.museumTitle") || "명예의 전당 박물관";
+  left.appendChild(title);
+  const sub = document.createElement("div");
+  sub.className = "muted small";
+  sub.style.cssText = "font-size:11px;";
+  sub.textContent = t("hof.museumDesc") || "은퇴한 전설적인 선수들의 명예로운 아카이브";
+  left.appendChild(sub);
+  row.appendChild(left);
+
+  const btn = document.createElement("button");
+  btn.className = "primary";
+  btn.type = "button";
+  btn.textContent = t("hof.enterMuseum") || "입장";
+  btn.style.cssText = "padding:10px 12px; font-size:12px; font-weight:700; flex-shrink:0;";
+  btn.addEventListener("click", () => route("hallofamemuseum"));
   row.appendChild(btn);
 
   panel.appendChild(row);
@@ -795,15 +834,39 @@ function renderNameField() {
   return wrap;
 }
 
+function syncPresetToCustom(faceId) {
+  if (faceId === "f1") return [0, 0, 0, 0, 0];
+  if (faceId === "f2") return [1, 1, 1, 3, 1];
+  if (faceId === "f3") return [2, 3, 1, 0, 2];
+  if (faceId === "f4") return [3, 0, 0, 1, 3];
+  if (faceId === "f5") return [4, 0, 2, 2, 0];
+  if (faceId === "f6") return [1, 2, 3, 0, 4];
+  if (faceId.startsWith("f_")) {
+    const p = faceId.split("_");
+    return [
+      parseInt(p[1]) || 0,
+      parseInt(p[2]) || 0,
+      parseInt(p[3]) || 0,
+      parseInt(p[4]) || 0,
+      parseInt(p[5]) || 0
+    ];
+  }
+  return [0, 0, 0, 0, 0];
+}
+
 function renderFaceGallery() {
   const wrap = document.createElement("div");
   wrap.appendChild(label(t("menu.fieldFace")));
 
-  // 6개 한 줄 (모바일 폭 ~360px 기준 카드당 ~55px)
+  // 1) 6개 프리셋 얼굴 그리드
   const row = document.createElement("div");
   row.style.display = "grid";
   row.style.gridTemplateColumns = "repeat(6, minmax(0, 1fr))";
   row.style.gap = "4px";
+  row.style.marginBottom = "8px";
+
+  const isCustom = draft.faceId.startsWith("f_");
+  const customParts = syncPresetToCustom(draft.faceId);
 
   for (const face of FACES) {
     const cell = document.createElement("div");
@@ -815,18 +878,20 @@ function renderFaceGallery() {
     cell.style.transition = "border-color 120ms";
     cell.style.textAlign = "center";
     cell.style.minWidth = "0";
-    if (draft.faceId === face.id) cell.style.borderColor = "var(--accent)";
+    if (!isCustom && draft.faceId === face.id) {
+      cell.style.borderColor = "var(--accent)";
+    }
 
     const svgWrap = document.createElement("div");
     svgWrap.style.display = "flex";
     svgWrap.style.justifyContent = "center";
-    svgWrap.appendChild(createFaceSVG(face.id, 36));
+    svgWrap.appendChild(createFaceSVG(face.id, 32));
     cell.appendChild(svgWrap);
 
     const lbl = document.createElement("div");
     lbl.className = "small muted";
     lbl.style.marginTop = "2px";
-    lbl.style.fontSize = "10px";
+    lbl.style.fontSize = "9px";
     lbl.style.lineHeight = "1.1";
     lbl.style.overflow = "hidden";
     lbl.style.textOverflow = "ellipsis";
@@ -837,14 +902,77 @@ function renderFaceGallery() {
     cell.addEventListener("click", () => {
       draft.faceId = face.id;
       refreshPreview();
-      for (const el of row.children) {
-        el.style.borderColor = "var(--border)";
-      }
-      cell.style.borderColor = "var(--accent)";
+      // 프리셋에 맞는 인덱스로 강제 싱크
+      const newCustom = syncPresetToCustom(face.id);
+      rebuildCustomUI(newCustom);
     });
     row.appendChild(cell);
   }
   wrap.appendChild(row);
+
+  // 2) 세부 커스터마이징 조절판 영역
+  const customSection = document.createElement("div");
+  customSection.id = "custom-face-editor";
+  customSection.style.cssText = "background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding:6px; display:flex; flex-direction:column; gap:6px;";
+  wrap.appendChild(customSection);
+
+  function rebuildCustomUI(parts) {
+    customSection.innerHTML = "";
+    
+    // 파츠 타입별 타이틀과 렌더링 루프
+    const partTypes = [
+      { name: t("custom.skin"), options: SKIN_COLORS, current: parts[0], colorType: true, idx: 0 },
+      { name: t("custom.hairColor"), options: HAIR_COLORS, current: parts[1], colorType: true, idx: 1 },
+      { name: t("custom.hairStyle"), options: HAIR_STYLES, current: parts[2], transPrefix: "custom.style.", idx: 2 },
+      { name: t("custom.accessory"), options: ACCESSORIES, current: parts[3], transPrefix: "custom.acc.", idx: 3 },
+      { name: t("custom.eye"), options: EYES, current: parts[4], transPrefix: "custom.eye.", idx: 4 }
+    ];
+
+    for (const pt of partTypes) {
+      const rowDiv = document.createElement("div");
+      rowDiv.style.cssText = "display:flex; align-items:center; gap:6px;";
+      
+      const pTitle = document.createElement("div");
+      pTitle.style.cssText = "font-size:10px; font-weight:700; width:52px; color:var(--accent-2); flex-shrink:0;";
+      pTitle.textContent = pt.name;
+      rowDiv.appendChild(pTitle);
+
+      const optRow = document.createElement("div");
+      optRow.style.cssText = "display:flex; gap:3px; flex-wrap:wrap; flex:1;";
+
+      pt.options.forEach((opt, oIdx) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        
+        if (pt.colorType) {
+          // 컬러 파츠는 색상 칩 형태로
+          btn.style.cssText = `width:16px; height:16px; border-radius:50%; background:${opt}; border:1.5px solid ${pt.current === oIdx ? "var(--accent)" : "var(--border)"}; padding:0; min-width:0; cursor:pointer;`;
+        } else {
+          // 텍스트 파츠는 작게 버튼으로
+          btn.textContent = t(pt.transPrefix + opt);
+          btn.style.cssText = "padding:2px 5px; font-size:9.5px; min-width:0; line-height:1.2;";
+          if (pt.current === oIdx) btn.classList.add("primary");
+        }
+
+        btn.addEventListener("click", () => {
+          parts[pt.idx] = oIdx;
+          const newFaceId = `f_${parts[0]}_${parts[1]}_${parts[2]}_${parts[3]}_${parts[4]}`;
+          draft.faceId = newFaceId;
+          refreshPreview();
+          // 프리셋 얼굴 하이라이트 초기화
+          for (const el of row.children) {
+            el.style.borderColor = "var(--border)";
+          }
+          rebuildCustomUI(parts);
+        });
+        optRow.appendChild(btn);
+      });
+      rowDiv.appendChild(optRow);
+      customSection.appendChild(rowDiv);
+    }
+  }
+
+  rebuildCustomUI(customParts);
   return wrap;
 }
 

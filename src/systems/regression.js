@@ -13,6 +13,7 @@
 //                          → 캐릭터 생성 시 read, 생성 직후 reset
 
 import { state } from "../state.js";
+import { computeHallOfFameScore, hofRank } from "./hallOfFame.js";
 import {
   TALENT_SLOTS_TIERS, STAT_KEYS, STAT_CAP_STEP, statCapCost,
   STARTING_STAT_PRESETS, TRAITS, RELICS, isTraitUnlocked, relicCost,
@@ -42,6 +43,13 @@ export function defaultRegressionMeta() {
       relics: [],                                   // 최대 2 — 장착 relic 키
       equipment: { bat: 0, glove: 0, cleats: 0 },   // 장착 장비 상태
     },
+    hallOfFameMuseum: {
+      batter: null,
+      pitcher: null,
+      balanced: null,
+      honor: null,
+      tournament: null,
+    },
   };
 }
 
@@ -69,6 +77,12 @@ function migrateMeta(data) {
   out.loadout.traits = Array.isArray(data?.loadout?.traits) ? [...data.loadout.traits] : [];
   out.loadout.relics = Array.isArray(data?.loadout?.relics) ? [...data.loadout.relics] : [];
   out.loadout.equipment = { ...base.loadout.equipment, ...(data?.loadout?.equipment ?? {}) };
+  
+  out.hallOfFameMuseum = {
+    ...base.hallOfFameMuseum,
+    ...(data?.hallOfFameMuseum ?? {})
+  };
+
 
   // 옛 세이브 자동 승계 — 이미 장착되어 있던 trait/relic 은 영구 소유로 간주.
   for (const k of out.loadout.traits) {
@@ -334,10 +348,103 @@ export function purchaseEquipment(type) {
   return { ok: true, type, level: nextItem.level, cost: nextItem.cost };
 }
 
+export function recordHallOfFame(player) {
+  const m = ensureMeta();
+  if (!m.hallOfFameMuseum) {
+    m.hallOfFameMuseum = { batter: null, pitcher: null, balanced: null, honor: null, tournament: null };
+  }
+  
+  const scoreData = computeHallOfFameScore(player);
+  const cs = player.careerStats ?? {};
+  const ss = player.seasonStats ?? {};
+  const combine = (k) => (cs[k] ?? 0) + (ss[k] ?? 0);
+  
+  // 5가지 분야별 가중치/점수 산출
+  // 1) batter score
+  const batterScore = combine("h") / 30 + combine("hr") / 3 + combine("rbi") / 50 + combine("sb") / 30;
+  // 2) pitcher score
+  const pitcherScore = combine("w") / 2 + combine("pK") / 10 + combine("sv") / 5;
+  // 3) balanced score
+  const bOVR = (player.batter.contact + player.batter.power + player.batter.eye + player.batter.speed + player.batter.defense) / 5;
+  const pOVR = (player.pitcher.velocity + player.pitcher.control + player.pitcher.breaking + player.pitcher.stamina + player.pitcher.mental) / 5;
+  const balancedScore = (bOVR + pOVR) - Math.abs(bOVR - pOVR) * 0.5;
+  // 4) honor score
+  const honorScore = scoreData.total;
+  // 5) tournament wins
+  const championshipsCount = player.championships?.length ?? 0;
+  const tHistory = player.tournamentHistory ?? [];
+  const tChampions = tHistory.filter(r => r.result === "champion").length;
+  const tournamentWins = championshipsCount + tChampions;
+
+  // 요약 보관 데이터 포맷
+  const makeRecord = (categoryScore) => ({
+    name: player.name,
+    faceId: player.faceId,
+    age: player.age,
+    position: player.position,
+    score: scoreData.total,
+    rank: hofRank(scoreData.total),
+    categoryScore: +categoryScore.toFixed(1),
+    retiredYear: player.careerHistory?.[player.careerHistory.length - 1]?.year ?? new Date().getFullYear(),
+    stats: {
+      ab: combine("ab"),
+      h: combine("h"),
+      hr: combine("hr"),
+      rbi: combine("rbi"),
+      sb: combine("sb"),
+      w: combine("w"),
+      l: combine("l"),
+      sv: combine("sv"),
+      ipOuts: combine("ipOuts"),
+      pK: combine("pK"),
+      er: combine("er"),
+      games: combine("games"),
+      pitchG: combine("pitchG"),
+    },
+    awardsCount: player.awards?.length ?? 0,
+    championshipsCount: championshipsCount
+  });
+
+  let updated = false;
+
+  // 카테고리별 1위 판정 및 갱신
+  const categories = [
+    { key: "batter", score: batterScore },
+    { key: "pitcher", score: pitcherScore },
+    { key: "balanced", score: balancedScore },
+    { key: "honor", score: honorScore },
+    { key: "tournament", score: tournamentWins }
+  ];
+
+  for (const cat of categories) {
+    const current = m.hallOfFameMuseum[cat.key];
+    if (!current || cat.score > (current.categoryScore ?? 0)) {
+      m.hallOfFameMuseum[cat.key] = makeRecord(cat.score);
+      updated = true;
+    }
+  }
+
+  if (updated) {
+    saveRegressionMeta();
+  }
+  return updated;
+}
+
+export function deleteHallOfFameRecord(key) {
+  const m = ensureMeta();
+  if (m.hallOfFameMuseum && m.hallOfFameMuseum[key] !== undefined) {
+    m.hallOfFameMuseum[key] = null;
+    saveRegressionMeta();
+    return true;
+  }
+  return false;
+}
+
 // 디버그/probe 용 — 전체 메타 초기화.
 export function resetRegressionMeta() {
   state.regression = defaultRegressionMeta();
   saveRegressionMeta();
   return state.regression;
 }
+
 

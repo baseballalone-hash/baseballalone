@@ -40,7 +40,7 @@ import { checkMilitaryTrigger, applyMilitaryService, MILITARY_OPTIONS } from "..
 import { simulatePostseasonGame, applyRoundReward, advanceToNextRound, pushPostseasonRecord, recordSeriesGame, isSeriesClinched, seriesWinner, winsToClinch } from "../systems/postseason.js";
 import { nextPendingEvent, clearPendingEvent, simulateAllStarGame, applyAllStarReward, simulateIntlTournamentGame, applyIntlTournamentReward, simulateIntlBracket } from "../systems/seasonEvents.js";
 import { computeHallOfFameScore, hofRank } from "../systems/hallOfFame.js";
-import { recordRun, loadRegressionMeta, unlockItem } from "../systems/regression.js";
+import { recordRun, loadRegressionMeta, unlockItem, recordHallOfFame } from "../systems/regression.js";
 import { saveToCloud, getCloudSaveMeta } from "../cloud/cloudSave.js";
 import { isSignedIn, isAnonymousUser } from "../cloud/auth.js";
 import { saveSettings } from "../systems/settings.js";
@@ -3055,6 +3055,7 @@ function renderCareerEndedPanel(route) {
   if (!state.regression) loadRegressionMeta();
   if (!state.player.regressionScored) {
     recordRun(hof.total);
+    recordHallOfFame(state.player);
     state.player.regressionScored = true;
     // 명예의 전당 헌액 시 회귀 도전과제 해금. rank === "hof" 만 (300+ 점수).
     if (rank === "hof") {

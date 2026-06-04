@@ -11,7 +11,36 @@ export const FACES = [
   { id: "f6", label: "장발",       skin: "#e7bc8a", hair: "#5a3a1d", style: "long",   accessory: null,    eye: "fierce" },
 ];
 
+export const SKIN_COLORS = ["#ecc7a1", "#e6b889", "#f0c89b", "#e3b07a", "#eccfa9"];
+export const HAIR_COLORS = ["#1a1a1a", "#2a1a0f", "#5a3a1d", "#b03030", "#d8a040"];
+export const HAIR_STYLES = ["short", "curly", "neat", "long"];
+export const ACCESSORIES = ["none", "cap", "glasses", "helmet"];
+export const EYES = ["calm", "sharp", "smile", "cool", "fierce"];
+
 export function getFace(id) {
+  if (typeof id === "string" && id.startsWith("f_")) {
+    const parts = id.split("_");
+    const skinIdx = parseInt(parts[1]) ?? 0;
+    const hairIdx = parseInt(parts[2]) ?? 0;
+    const styleIdx = parseInt(parts[3]) ?? 0;
+    const accIdx = parseInt(parts[4]) ?? 0;
+    const eyeIdx = parseInt(parts[5]) ?? 0;
+
+    const skin = SKIN_COLORS[skinIdx] ?? SKIN_COLORS[0];
+    const hair = HAIR_COLORS[hairIdx] ?? HAIR_COLORS[0];
+    const style = HAIR_STYLES[styleIdx] ?? HAIR_STYLES[0];
+    const accessory = ACCESSORIES[accIdx] ?? "none";
+    const eye = EYES[eyeIdx] ?? EYES[0];
+
+    return {
+      id,
+      skin,
+      hair,
+      style,
+      accessory: accessory === "none" ? null : accessory,
+      eye,
+    };
+  }
   return FACES.find(f => f.id === id) ?? FACES[0];
 }
 
