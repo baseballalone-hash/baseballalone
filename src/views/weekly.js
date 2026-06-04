@@ -270,6 +270,55 @@ function buildFinalPlaying(dialog, final, rerender) {
   });
 }
 
+function getBatterBoxDiff(oldType, newType, oldRuns, newRuns) {
+  const getStats = (type, runs) => {
+    let ab = 0, h = 0, hr = 0, bb = 0, k = 0, tb = 0;
+    if (type === "BB") bb = 1;
+    else if (type === "HBP") {}
+    else {
+      ab = 1;
+      if (type === "1B") { h = 1; tb = 1; }
+      else if (type === "2B") { h = 1; tb = 2; }
+      else if (type === "3B") { h = 1; tb = 3; }
+      else if (type === "HR") { h = 1; hr = 1; tb = 4; }
+      else if (type === "K") { k = 1; }
+    }
+    return { ab, h, hr, bb, k, tb, r: (type === "HR" ? 1 : 0), rbi: runs };
+  };
+  const oldStats = getStats(oldType, oldRuns);
+  const newStats = getStats(newType, newRuns);
+  return {
+    ab: newStats.ab - oldStats.ab,
+    h: newStats.h - oldStats.h,
+    hr: newStats.hr - oldStats.hr,
+    bb: newStats.bb - oldStats.bb,
+    k: newStats.k - oldStats.k,
+    tb: newStats.tb - oldStats.tb,
+    r: newStats.r - oldStats.r,
+    rbi: newStats.rbi - oldStats.rbi,
+  };
+}
+
+function getPitcherBoxDiff(oldType, newType, oldRuns, newRuns) {
+  const getStats = (type, runs) => {
+    let pK = 0, pBB = 0, pH = 0, pHR = 0;
+    if (type === "K") pK = 1;
+    else if (type === "BB") pBB = 1;
+    else if (type === "1B" || type === "2B" || type === "3B") pH = 1;
+    else if (type === "HR") { pH = 1; pHR = 1; }
+    return { pK, pBB, pH, pHR, er: runs };
+  };
+  const oldStats = getStats(oldType, oldRuns);
+  const newStats = getStats(newType, newRuns);
+  return {
+    pK: newStats.pK - oldStats.pK,
+    pBB: newStats.pBB - oldStats.pBB,
+    pH: newStats.pH - oldStats.pH,
+    pHR: newStats.pHR - oldStats.pHR,
+    er: newStats.er - oldStats.er,
+  };
+}
+
 // 라이브 경기 렌더링 helper — 결승/포스트시즌/올스타 공용.
 //   dialog: 모달 dialog DOM (기존 자식 제거 후 채움)
 //   result: simulateGame 결과 객체 (home/away/innings/mainPlayer.events 필요)
@@ -608,6 +657,7 @@ function playLiveGame(dialog, result, opts) {
       const mode = mainEvs[0]?.role === "batter" ? "bat" : "pit";
       const scene = createPOVScene(mode);
       swapField(scene.el);
+      const mp = result.mainPlayer;
       for (const ev of evs) {
         if (cancelled) return;
         if (ev.role === "system") {
@@ -616,14 +666,53 @@ function playLiveGame(dialog, result, opts) {
           await waitMs(360);
           continue;
         }
+        const originalType = ev.type;
+        const originalRuns = ev.runsScored ?? 0;
+
         await playPitchCancellable(scene, ev);
         if (cancelled) return;
         appendEventLog(ev);
+
+        const newType = ev.type;
+        const newRuns = ev.runsScored ?? 0;
+        const diff = newRuns - originalRuns;
+
+        if (diff !== 0) {
+          const isMyHalf = (half === "top") === !isHome;
+          const targetEntry = isMyHalf ? my : opp;
+          targetEntry.score = (targetEntry.score ?? 0) + diff;
+          if (targetEntry.innings) {
+            targetEntry.innings[inning] = (targetEntry.innings[inning] ?? 0) + diff;
+          }
+        }
+
+        // 메인 캐릭터 박스스코어 업데이트
+        if (mp) {
+          if (ev.role === "batter" && mp.batterBox) {
+            const bDiff = getBatterBoxDiff(originalType, newType, originalRuns, newRuns);
+            mp.batterBox.ab = (mp.batterBox.ab ?? 0) + bDiff.ab;
+            mp.batterBox.h = (mp.batterBox.h ?? 0) + bDiff.h;
+            mp.batterBox.hr = (mp.batterBox.hr ?? 0) + bDiff.hr;
+            mp.batterBox.bb = (mp.batterBox.bb ?? 0) + bDiff.bb;
+            mp.batterBox.k = (mp.batterBox.k ?? 0) + bDiff.k;
+            mp.batterBox.tb = (mp.batterBox.tb ?? 0) + bDiff.tb;
+            mp.batterBox.r = (mp.batterBox.r ?? 0) + bDiff.r;
+            mp.batterBox.rbi = (mp.batterBox.rbi ?? 0) + bDiff.rbi;
+          } else if (ev.role === "pitcher" && mp.pitcherBox) {
+            const pDiff = getPitcherBoxDiff(originalType, newType, originalRuns, newRuns);
+            mp.pitcherBox.pK = (mp.pitcherBox.pK ?? 0) + pDiff.pK;
+            mp.pitcherBox.pBB = (mp.pitcherBox.pBB ?? 0) + pDiff.pBB;
+            mp.pitcherBox.pH = (mp.pitcherBox.pH ?? 0) + pDiff.pH;
+            mp.pitcherBox.pHR = (mp.pitcherBox.pHR ?? 0) + pDiff.pHR;
+            mp.pitcherBox.er = (mp.pitcherBox.er ?? 0) + pDiff.er;
+          }
+        }
+
         // 메인 PA 의 점수 즉시 반영
-        if (ev.runsScored > 0) {
-          mainRunsThisHalf += ev.runsScored;
-          addInstantRuns(half, ev.runsScored);
-          updateLineScoreCellAdd(lineScore, ((half === "top") === !isHome) ? "my" : "opp", inning, ev.runsScored);
+        if (newRuns > 0) {
+          mainRunsThisHalf += newRuns;
+          addInstantRuns(half, newRuns);
+          updateLineScoreCellAdd(lineScore, ((half === "top") === !isHome) ? "my" : "opp", inning, newRuns);
         }
         await waitMs(180);
       }
@@ -669,6 +758,8 @@ function playLiveGame(dialog, result, opts) {
         break;
       }
     }
+    // 최종 결과 스코어 및 승리팀 갱신
+    result.winner = result.home.score > result.away.score ? result.home.team.name : result.away.team.name;
     // cancelled 든 정상 종료든 onComplete 호출 — result phase 로 전환.
     opts.onComplete?.();
   })();
