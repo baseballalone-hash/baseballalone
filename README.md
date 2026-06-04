@@ -634,7 +634,7 @@ AdSense 디스플레이를 모달에 넣는 방식은 게임 광고로 부적합
 
 | 영역 | 작업 |
 |---|---|
-| **GameMonetize 게임 등록** (`index.html`) | `SDK_OPTIONS.gameId` placeholder → `"zk9dnevoky8n3c7r7immy2e4xxbamx4b"`. 게임 페이지: `https://html5.gamemonetize.com/zk9dnevoky8n3c7r7immy2e4xxbamx4b/`. |
+| **GameMonetize 게임 등록** (`index.html`) | `SDK_OPTIONS.gameId` placeholder → `"tyjw4mgt7w0qkvu09hs0gfo0m460ktbi"`. 게임 페이지: `https://html5.gamemonetize.com/tyjw4mgt7w0qkvu09hs0gfo0m460ktbi/`. |
 | **3시즌 광고 트리거 중앙화** (`src/systems/week.js` `advanceToNextSeason`) | 종전엔 `weekly.js` 의 "다음 연차 진행" 버튼 핸들러에만 `maybeShowSeasonAd` 가 달려있어, **진로 선택**(`chooseCareerPath` → univ/kbo/mlb) 경로에선 광고가 안 떴음(예: 고교 3년차 종료 후 KBO 드래프트 "Join the team" 직후). `careerHistory.push` 직후 시점인 `advanceToNextSeason()` 말미로 옮겨 일반 시즌 전환·진로 선택·군입대 복귀 등 모든 경로에서 자동 발화. weekly.js 중복 호출/안 쓰는 import 제거. |
 | 배포 번들 | `baseballalone-gm.zip` 재생성(루트 = index.html). GameMonetize 업로드용 — 4.0MB. |
 

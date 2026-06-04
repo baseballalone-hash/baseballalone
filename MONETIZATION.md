@@ -3,7 +3,7 @@
 이 게임은 **GameMonetize.com SDK** 로 수익화합니다 — 웹(HTML5) 게임 전용 광고 네트워크로, **전면(인터스티셜)·보상형 광고**를 지원합니다.
 (이전의 Google AdSense 디스플레이 방식은 게임 모달 광고가 정책상 부적합해 GameMonetize 로 교체함.)
 
-현재 GameMonetize 게임 ID = `zk9dnevoky8n3c7r7immy2e4xxbamx4b` (등록 완료, `index.html` `SDK_OPTIONS.gameId` 에 입력됨).
+현재 GameMonetize 게임 ID = `tyjw4mgt7w0qkvu09hs0gfo0m460ktbi` (등록 완료, `index.html` `SDK_OPTIONS.gameId` 에 입력됨).
 
 ---
 
@@ -30,7 +30,7 @@
 
 | 파일 | 항목 | 값 |
 |---|---|---|
-| `index.html` (head SDK_OPTIONS) | `gameId` | `"zk9dnevoky8n3c7r7immy2e4xxbamx4b"` |
+| `index.html` (head SDK_OPTIONS) | `gameId` | `"tyjw4mgt7w0qkvu09hs0gfo0m460ktbi"` |
 
 > SDK 스크립트(`https://api.gamemonetize.com/sdk.js`)는 이미 로드됩니다. 게임 ID 변경 시 한 줄만 교체하면 됩니다.
 
