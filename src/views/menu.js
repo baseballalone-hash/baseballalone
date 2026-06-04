@@ -817,34 +817,36 @@ function renderPreview() {
   card.style.background = "var(--panel-2)";
   card.style.border = "1px solid var(--border)";
   card.style.borderRadius = "8px";
-  card.style.padding = "3px";
+  card.style.padding = "10px";
   card.style.textAlign = "center";
 
-  // 캐릭터 일러스트(얼굴별 타자 그림) — 없으면 기존 파라메트릭 SVG 폴백.
-  //   좌타(hand=left/mixed)는 img 만 scaleX(-1) 반전(폴백 SVG 는 내부에서 손방향 처리하므로 미적용).
-  //   idle 미세 흔들림(nir-idle)은 wrap 에만 적용 → flip 과 충돌 없음.
   ensureSpinnerStyle();
-  const battingLeft = draft.hand === "left" || draft.hand === "mixed";
-  // 높이 70px 고정 — 생성 화면 1스크린 맞춤(이전 96px도 살짝 넘쳐 더 축소). width:auto 로 비율 보존.
-  const presetKey = mapCustomToPreset(draft.faceId).toUpperCase();
-  const charImg = createImage("charBat" + presetKey, {
-    style: "animation:nir-idle 3.2s ease-in-out infinite;",
-    imgStyle: `height:70px; width:auto; margin:0 auto;${battingLeft ? " transform:scaleX(-1);" : ""}`,
-    fallback: () => createCharacterSVG(draft.faceId, draft.hand, { w: 60, h: 72 }, draft.talent),
-  });
-  card.appendChild(charImg);
+  
+  // 실시간 세부 조작이 다 반영되도록 전신 SVG를 크게 렌더링 (w: 135, h: 180)
+  const charSVG = createCharacterSVG(
+    draft.faceId,
+    draft.hand,
+    { w: 135, h: 180 },
+    draft.talent,
+    { bat: 0, glove: 0, cleats: 0 }
+  );
+  
+  // 생동감을 주는 미세 흔들림 애니메이션 추가
+  charSVG.style.animation = "nir-idle 3.2s ease-in-out infinite";
+  charSVG.style.margin = "0 auto";
+  card.appendChild(charSVG);
 
   const name = document.createElement("div");
-  name.style.marginTop = "4px";
-  name.style.fontSize = "14px";
-  name.style.fontWeight = "600";
+  name.style.marginTop = "8px";
+  name.style.fontSize = "16px";
+  name.style.fontWeight = "700";
   name.textContent = draft.name || t("menu.defaultName");
   card.appendChild(name);
 
   const meta = document.createElement("div");
   meta.className = "muted small";
-  meta.style.marginTop = "2px";
-  meta.style.fontSize = "11px";
+  meta.style.marginTop = "3px";
+  meta.style.fontSize = "12px";
   meta.textContent = t("menu.previewMeta", { talent: t("talent." + draft.talent) });
   card.appendChild(meta);
 
