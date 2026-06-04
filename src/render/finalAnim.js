@@ -322,7 +322,8 @@ function showPreparationOverlay(container, mode) {
     btn.style.cssText = "padding:6px 20px; font-size:12px; font-weight:700; border-radius:4px; cursor:pointer; background:var(--accent-2); color:#000000; border:none;";
     btn.classList.add("primary");
     
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
       sfx("click");
       overlay.remove();
       resolve();
@@ -376,7 +377,7 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
           if (swingTriggered) return;
           swingTriggered = true;
           clickTime = Date.now();
-          svg.removeEventListener("click", onSwing);
+          container.removeEventListener("click", onSwing);
 
           const elapsed = clickTime - pitchStartTime;
           const p = elapsed / duration;
@@ -441,13 +442,13 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
             });
         };
 
-        svg.addEventListener("click", onSwing);
+        container.addEventListener("click", onSwing);
 
         // 미타격 스트라이크 타임아웃
         setTimeout(() => {
           if (swingTriggered) return;
           swingTriggered = true;
-          svg.removeEventListener("click", onSwing);
+          container.removeEventListener("click", onSwing);
 
           updateEventResult(event, "K");
           hideLabel(labelHost);
@@ -499,7 +500,7 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
           if (releaseTriggered) return;
           releaseTriggered = true;
           clickTime = Date.now();
-          svg.removeEventListener("click", onRelease);
+          container.removeEventListener("click", onRelease);
           ring.remove();
 
           const elapsed = clickTime - pitchStartTime;
@@ -566,13 +567,13 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
             });
         };
 
-        svg.addEventListener("click", onRelease);
+        container.addEventListener("click", onRelease);
 
         // 미조작 시 자동 실투
         setTimeout(() => {
           if (releaseTriggered) return;
           releaseTriggered = true;
-          svg.removeEventListener("click", onRelease);
+          container.removeEventListener("click", onRelease);
           ring.remove();
 
           const finalResult = Math.random() < 0.4 ? "HR" : "1B";
