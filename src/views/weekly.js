@@ -25,6 +25,7 @@ import { simulateFinal, applyFinalReward } from "../systems/finals.js";
 import { createPOVScene, pulseDiamondHome } from "../render/finalAnim.js";
 import { sfx } from "../assets/audio.js";
 import { createImage } from "../assets/images.js";
+import { createCharacterSVG } from "../render/character.js";
 
 // 이벤트 컷 삽입 헬퍼 — 에셋 있으면 일러스트, 없으면(파일 X) 아무것도 안 그림.
 function eventCut(key) {
@@ -1734,29 +1735,50 @@ function renderAttributesBody(player) {
   const row = document.createElement("div");
   row.style.display = "flex";
   row.style.gap = "8px";
-  row.style.alignItems = "flex-start";
+  row.style.alignItems = "center";
 
+  // 캐릭터 전신 박스 (장비 시각화 포함)
+  const charBox = document.createElement("div");
+  charBox.style.flex = "0 0 auto";
+  charBox.style.background = "var(--panel-2)";
+  charBox.style.border = "1px solid var(--border)";
+  charBox.style.borderRadius = "8px";
+  charBox.style.padding = "4px";
+  charBox.style.display = "flex";
+  charBox.style.alignItems = "center";
+  charBox.style.justifyContent = "center";
+
+  const charSVG = createCharacterSVG(
+    player.faceId ?? "f1",
+    player.hand ?? "right",
+    { w: 85, h: 113 },
+    player.talent ?? "all_round",
+    player.equipment
+  );
+  charBox.appendChild(charSVG);
+  row.appendChild(charBox);
+
+  // 레이더 차트 (크기 130px로 컴팩트화)
   const radarBox = document.createElement("div");
   radarBox.style.flex = "0 0 auto";
   const labels = [...BATTER_STATS, ...PITCHER_STATS];
   const values = {};
   for (const s of BATTER_STATS) values[s] = player.batter[s] + (eqStats[s] ?? 0);
   for (const s of PITCHER_STATS) values[s] = player.pitcher[s] + (eqStats[s] ?? 0);
-  // 그래프 max — stage base cap + 스탯별 영구 캡 보너스 반영해 동적 조정.
-  // 레이다는 전 축 공통 max 라서 가장 큰 스탯 캡(getPlayerMaxStatCap)에 맞춤 — 한 축도 안 넘치게.
-  // 막대는 각 스탯의 개별 캡으로 채움률 표시.
+  
   const radarMax = getPlayerMaxStatCap(player);
   radarBox.appendChild(createRadarSVG(values, labels, {
-    size: 160, min: 0, max: radarMax, labelMap: statLabels,
+    size: 130, min: 0, max: radarMax, labelMap: statLabels,
   }));
   row.appendChild(radarBox);
 
+  // 스탯 바 리스트
   const barsCol = document.createElement("div");
   barsCol.style.flex = "1 1 0";
   barsCol.style.minWidth = "0";
   barsCol.style.display = "flex";
   barsCol.style.flexDirection = "column";
-  barsCol.style.gap = "3px";
+  barsCol.style.gap = "2px";
   for (const s of BATTER_STATS) {
     const bonus = eqStats[s] ?? 0;
     barsCol.appendChild(statBarRow(statLabels[s], player.batter[s], "var(--accent)", getPlayerStatCap(player, s), bonus));

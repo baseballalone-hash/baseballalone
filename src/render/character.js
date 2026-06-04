@@ -1,4 +1,4 @@
-// 3등신 캐릭터 (배팅 자세) — 손잡이별 자세 변경
+// 3등신 캐릭터 (배팅 자세) — 손잡이별 자세 변경 및 장비 레벨 연동 시각화
 import { svg, svgEl, group } from "./svg.js";
 import { createFaceGroup } from "./avatars.js";
 
@@ -7,7 +7,7 @@ import { createFaceGroup } from "./avatars.js";
 //   우투우타: 오른손 배트, 오른쪽 타석 → 캐릭터는 화면 오른쪽으로 자세
 //   좌투좌타: 왼쪽 타석 → 화면 왼쪽으로 자세 (mirror)
 //   우투좌타: 좌타 자세지만 글러브가 오른손 (배지로 표시)
-export function createCharacterSVG(faceId, hand = "right", size = { w: 180, h: 240 }, talent = "all_round") {
+export function createCharacterSVG(faceId, hand = "right", size = { w: 180, h: 240 }, talent = "all_round", equipment = { bat: 0, glove: 0, cleats: 0 }) {
   const root = svg(size.w, size.h, "0 0 180 240");
 
   // 배경 (홈플레이트 느낌)
@@ -27,9 +27,17 @@ export function createCharacterSVG(faceId, hand = "right", size = { w: 180, h: 2
   grad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "rgba(120,80,40,0.0)" }));
   grad.appendChild(svgEl("stop", { offset: "100%", "stop-color": "rgba(120,80,40,0.25)" }));
   defs.appendChild(grad);
+
+  // 황금 배트/장비용 금색 그라데이션
+  const goldGrad = svgEl("linearGradient", { id: "goldBatGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%" });
+  goldGrad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#ffe066" }));
+  goldGrad.appendChild(svgEl("stop", { offset: "50%", "stop-color": "#f59e0b" }));
+  goldGrad.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#b45309" }));
+  defs.appendChild(goldGrad);
+
   root.appendChild(defs);
 
-  const charGroup = drawCharacterBody(faceId, hand, talent);
+  const charGroup = drawCharacterBody(faceId, hand, talent, equipment);
   root.appendChild(charGroup);
 
   // 손잡이 라벨
@@ -54,7 +62,7 @@ function handLabel(hand) {
   return hand;
 }
 
-function drawCharacterBody(faceId, hand, talent = "all_round") {
+function drawCharacterBody(faceId, hand, talent = "all_round", equipment = { bat: 0, glove: 0, cleats: 0 }) {
   // 좌타 = 화면 기준 mirror (캐릭터 머리/몸은 그대로지만 배트 위치/자세 좌우 반전)
   const battingLeft = hand === "left" || hand === "mixed";
   const g = group([], { transform: `translate(90 30)` });
@@ -120,10 +128,16 @@ function drawCharacterBody(faceId, hand, talent = "all_round") {
     fill: "#bfc5d0",
   }));
 
-  // 신발/스파이크 (체형 너비 연동)
+  // 신발/스파이크 (체형 너비 연동 & cleats 장비 레벨 연동)
+  const cleatsLvl = equipment?.cleats ?? 0;
+  let footColor = "#1a1a1a"; // lvl 0 (일반 검정화)
+  if (cleatsLvl === 1) footColor = "#3b82f6"; // lvl 1 (블루 스파이크)
+  else if (cleatsLvl === 2) footColor = "#ef4444"; // lvl 2 (레드 스파이크)
+  else if (cleatsLvl === 3) footColor = "url(#goldBatGrad)"; // lvl 3 (황금 스파이크)
+
   const footX = Math.round(legW * 0.65);
-  g.appendChild(svgEl("ellipse", { cx: -footX, cy: 174, rx: 11, ry: 5, fill: "#1a1a1a" }));
-  g.appendChild(svgEl("ellipse", { cx: footX, cy: 174, rx: 11, ry: 5, fill: "#1a1a1a" }));
+  g.appendChild(svgEl("ellipse", { cx: -footX, cy: 174, rx: 11, ry: 5, fill: footColor }));
+  g.appendChild(svgEl("ellipse", { cx: footX, cy: 174, rx: 11, ry: 5, fill: footColor }));
 
   // 팔 + 배트 자세
   // 기본: 우타 자세 (오른쪽에 배트, 양손이 어깨 위)
@@ -149,20 +163,52 @@ function drawCharacterBody(faceId, hand, talent = "all_round") {
     "stroke-width": "0.8",
   }));
 
+  // 배팅 장갑 (glove 장비 레벨 연동)
+  const gloveLvl = equipment?.glove ?? 0;
+  let gloveColor = "#e6b889"; // lvl 0 (맨손)
+  if (gloveLvl === 1) gloveColor = "#4ea4ff"; // lvl 1 (블루 장갑)
+  else if (gloveLvl === 2) gloveColor = "#1a1a1a"; // lvl 2 (가죽 검정 장갑)
+  else if (gloveLvl === 3) gloveColor = "url(#goldBatGrad)"; // lvl 3 (황금 장갑)
+
+  // 뒷손 장갑 얹기 (뒷팔 끝 부분)
+  armsG.appendChild(svgEl("circle", { cx: 37, cy: 73, r: 5.5, fill: gloveColor }));
+  // 앞손 장갑 얹기 (앞팔 끝 부분)
+  armsG.appendChild(svgEl("circle", { cx: 9, cy: 79, r: 5.5, fill: gloveColor }));
+
+  // 배트 (bat 장비 레벨 연동)
+  const batLvl = equipment?.bat ?? 0;
+  let batColor = "#8a5a2a"; // lvl 0 (나무 배트)
+  let batTipColor = "#8a5a2a";
+  let gripColor = "#3a2517";
+
+  if (batLvl === 1) {
+    batColor = "#cbd5e1"; // lvl 1 (실버 알루미늄 배트)
+    batTipColor = "#94a3b8";
+    gripColor = "#1e293b";
+  } else if (batLvl === 2) {
+    batColor = "#334155"; // lvl 2 (카본 배트)
+    batTipColor = "#ef4444"; // 빨간 팁
+    gripColor = "#ef4444";
+  } else if (batLvl === 3) {
+    batColor = "url(#goldBatGrad)"; // lvl 3 (황금 배트)
+    batTipColor = "#fbbf24";
+    gripColor = "#1e1b4b";
+  }
+
   // 배트 (오른쪽 어깨 뒤에서 위로 올라감)
   armsG.appendChild(svgEl("line", {
     x1: 38, y1: 56,
     x2: 78, y2: -2,
-    stroke: "#8a5a2a",
+    stroke: batColor,
     "stroke-width": "5",
     "stroke-linecap": "round",
   }));
   // 배트 끝 굵게
-  armsG.appendChild(svgEl("circle", { cx: 78, cy: -2, r: 5, fill: "#8a5a2a" }));
+  armsG.appendChild(svgEl("circle", { cx: 78, cy: -2, r: 5, fill: batTipColor }));
   // 그립
   armsG.appendChild(svgEl("rect", {
     x: 30, y: 50, width: 12, height: 6,
-    fill: "#3a2517",
+    fill: gripColor,
     transform: "rotate(-30 36 53)",
   }));
 
@@ -175,7 +221,22 @@ function drawCharacterBody(faceId, hand, talent = "all_round") {
     const throwHand = hand === "mixed" ? "R" : "L";
     const badgeX = hand === "mixed" ? 36 : -36;
     const badge = group([], { transform: `translate(${badgeX} 130)` });
-    badge.appendChild(svgEl("circle", { cx: 0, cy: 0, r: 13, fill: "#3a2517", stroke: "#5a3a1d", "stroke-width": "1.5" }));
+
+    // 글러브 배지 색상도 글러브 레벨에 연동
+    let badgeBg = "#3a2517";
+    let badgeBorder = "#5a3a1d";
+    if (gloveLvl === 1) {
+      badgeBg = "#4ea4ff";
+      badgeBorder = "#1d4ed8";
+    } else if (gloveLvl === 2) {
+      badgeBg = "#1f2937";
+      badgeBorder = "#4b5563";
+    } else if (gloveLvl === 3) {
+      badgeBg = "url(#goldBatGrad)";
+      badgeBorder = "#d97706";
+    }
+
+    badge.appendChild(svgEl("circle", { cx: 0, cy: 0, r: 13, fill: badgeBg, stroke: badgeBorder, "stroke-width": "1.5" }));
     const txt = svgEl("text", {
       x: 0, y: 4, "text-anchor": "middle",
       fill: "#e8edf3", "font-size": "10", "font-weight": "bold",
