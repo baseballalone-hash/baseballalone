@@ -950,6 +950,7 @@ export const en = {
     btnStartFinal: "Start the game",
     btnSkipLive:    "Skip",
     btnSkippedLive: "Skipping…",
+    manualPlay: "Manual Control",
     btnAcceptReward: "Claim reward",
     finalLiveTitle: "{tournament} Final",
     finalChampion: "{tournament} — Champion!",

@@ -241,38 +241,54 @@ function playResultSfx(type) {
   else if (type === "K") sfx("strikeout");
 }
 
+let isInteractiveActive = false;
+
+function updateEventResult(event, finalResult) {
+  event.type = finalResult;
+  if (finalResult === "HR") {
+    event.runsScored = Math.max(1, event.runsScored ?? 0);
+    event.rbi = Math.max(1, event.rbi ?? 0);
+  } else if (finalResult === "1B" || finalResult === "2B" || finalResult === "3B") {
+    event.runsScored = event.runsScored ?? 0;
+    event.rbi = event.rbi ?? 0;
+  } else {
+    event.runsScored = 0;
+    event.rbi = 0;
+  }
+}
+
 function playPitchSequence({ svg, fxHost, ball, labelHost, swingRef, event, mode }) {
+  const isManual = state.settings?.manualPlay !== false; // 기본값 true
+  if (isManual) {
+    return playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event, mode });
+  }
+  return playPitchSequenceAuto({ svg, fxHost, ball, labelHost, swingRef, event, mode });
+}
+
+function playPitchSequenceAuto({ svg, fxHost, ball, labelHost, swingRef, event, mode }) {
   const spec = PLAYBOOK[event.type] ?? PLAYBOOK.OUT;
   const { contact, final } = pickEndPoint(spec);
 
-  // 시작: 투수 손 부근 (bat) 또는 타자 부근에서 멀어짐 (pit)
-  const start = mode === "bat"
-    ? { x: 160, y: 58, r: 3 }
-    : { x: 160, y: 58, r: 3 };
+  const start = mode === "bat" ? { x: 160, y: 58, r: 3 } : { x: 160, y: 58, r: 3 };
 
   ball.style.opacity = "1";
   ball.setAttribute("cx", start.x);
   ball.setAttribute("cy", start.y);
   ball.setAttribute("r", start.r);
 
-  // 공투척음 — 모든 투구 릴리스. + 투구 POV 면 전경 팔 살짝 push.
   sfx("pitch");
   if (mode === "pit" && swingRef.fg) throwPush(swingRef);
 
   return animateBall(ball, start, { x: contact.x, y: contact.y, r: 5 }, 380)
     .then(() => {
-      // 스윙 (타격 POV) — 전경 이미지면 CSS 회전, 아니면 기존 SVG 방망이 회전.
       if (spec.swing && mode === "bat" && (swingRef.fg || swingRef.bat)) {
         swingBat(swingRef);
       }
-      // 결과 효과음 — 타격음 3종(홈런/안타/범타) + 홈런 함성, 삼진음. 공 컨택 시점에 맞춤.
       playResultSfx(event.type);
       showLabel(labelHost, t("event." + event.type), spec.accent);
-      // 컨택 직후 후속 비행
       return animateBall(ball, { x: contact.x, y: contact.y, r: 5 }, final, 700);
     })
     .then(() => {
-      // 홈런이면 공이 멀어진 뒤 폭죽 + 라벨 유지 길게
       if (spec.firework) {
         spawnFireworks(fxHost ?? svg);
         return waitMs(900);
@@ -283,6 +299,281 @@ function playPitchSequence({ svg, fxHost, ball, labelHost, swingRef, event, mode
       ball.style.opacity = "0";
       hideLabel(labelHost);
     });
+}
+
+function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event, mode }) {
+  isInteractiveActive = true;
+
+  const start = { x: 160, y: 58, r: 3 };
+  ball.style.opacity = "1";
+  ball.setAttribute("cx", start.x.toString());
+  ball.setAttribute("cy", start.y.toString());
+  ball.setAttribute("r", start.r.toString());
+
+  if (mode === "bat") {
+    // ────────────── 타자 모드 (직접 타격 조작) ──────────────
+    const duration = 900; // 수동 조작용 여유 속도 (0.9초)
+    showLabel(labelHost, t("homerunDerby.swingBtn") || "SWING!", "var(--accent)");
+
+    sfx("pitch");
+    const pitchStartTime = Date.now();
+    let swingTriggered = false;
+    let clickTime = 0;
+
+    // 타격 애니메이션 루프 (수동 구동)
+    const activeFrame = () => {
+      if (!isInteractiveActive || swingTriggered) return;
+      const elapsed = Date.now() - pitchStartTime;
+      const p = Math.min(1.0, elapsed / duration);
+      const cy = start.y + (195 - start.y) * p;
+      const r = start.r + (15 - start.r) * p;
+      ball.setAttribute("cy", cy.toFixed(1));
+      ball.setAttribute("r", r.toFixed(1));
+      if (p < 1.0) {
+        requestAnimationFrame(activeFrame);
+      }
+    };
+    requestAnimationFrame(activeFrame);
+
+    return new Promise(resolve => {
+      const onSwing = (e) => {
+        if (swingTriggered) return;
+        swingTriggered = true;
+        clickTime = Date.now();
+        svg.removeEventListener("click", onSwing);
+
+        const elapsed = clickTime - pitchStartTime;
+        const p = elapsed / duration;
+
+        // 능력치 반영 타이밍 윈도우 계산
+        const contactStat = state.player?.contact ?? 50;
+        const powerStat = state.player?.power ?? 50;
+        const perfectWin = 0.05 + (contactStat - 50) * 0.0003;
+        const goodWin = 0.14 + (contactStat - 50) * 0.0006;
+
+        let finalResult = "K";
+        let feedbackText = t("homerunDerby.miss") || "MISS!";
+        let feedbackColor = "var(--bad)";
+
+        if (Math.abs(p - 0.82) <= perfectWin / 2) {
+          finalResult = Math.random() < (powerStat / 140) ? "HR" : "3B";
+          feedbackText = t("homerunDerby.perfect") || "PERFECT!";
+          feedbackColor = "var(--accent-2)";
+        } else if (Math.abs(p - 0.82) <= goodWin / 2) {
+          finalResult = Math.random() < 0.5 ? "1B" : "2B";
+          feedbackText = t("homerunDerby.good") || "GOOD!";
+          feedbackColor = "var(--accent)";
+        } else if (p >= 0.58 && p <= 1.04) {
+          finalResult = "OUT";
+          feedbackText = p < 0.82 ? (t("homerunDerby.early") || "EARLY") : (t("homerunDerby.late") || "LATE");
+          feedbackColor = "var(--warn)";
+        } else {
+          finalResult = "K";
+          feedbackText = t("homerunDerby.miss") || "MISS!";
+          feedbackColor = "var(--bad)";
+        }
+
+        updateEventResult(event, finalResult);
+        hideLabel(labelHost);
+        showLabel(labelHost, feedbackText, feedbackColor);
+
+        // 스윙 기동
+        if (swingRef.fg) {
+          swingRef.fg.style.transition = "transform 140ms ease-out";
+          swingRef.fg.style.transform = fgBaseTransform(swingRef) + " rotate(-85deg)";
+        } else if (swingRef.bat) {
+          swingRef.bat.setAttribute("transform", "rotate(90 14 -32)");
+        }
+
+        playResultSfx(finalResult);
+        const spec = PLAYBOOK[finalResult] ?? PLAYBOOK.OUT;
+        const { contact, final } = pickEndPoint(spec);
+
+        animateBall(ball, { x: 160, y: parseFloat(ball.getAttribute("cy")), r: parseFloat(ball.getAttribute("r")) }, final, 700)
+          .then(() => {
+            if (spec.firework) {
+              spawnFireworks(fxHost ?? svg);
+              return waitMs(900);
+            }
+            return waitMs(220);
+          })
+          .then(() => {
+            ball.style.opacity = "0";
+            hideLabel(labelHost);
+            isInteractiveActive = false;
+            resolve();
+          });
+      };
+
+      svg.addEventListener("click", onSwing);
+
+      // 미타격 스트라이크 타임아웃
+      setTimeout(() => {
+        if (swingTriggered) return;
+        swingTriggered = true;
+        svg.removeEventListener("click", onSwing);
+
+        updateEventResult(event, "K");
+        hideLabel(labelHost);
+        showLabel(labelHost, t("homerunDerby.miss") || "MISS!", "var(--bad)");
+        sfx("strikeout");
+
+        waitMs(800).then(() => {
+          ball.style.opacity = "0";
+          hideLabel(labelHost);
+          isInteractiveActive = false;
+          resolve();
+        });
+      }, duration * 1.12);
+    });
+
+  } else {
+    // ────────────── 투수 모드 (직접 타이밍 투구 조작) ──────────────
+    const duration = 1000;
+    
+    // 타이밍 링 생성 및 오버레이 렌더
+    const ring = svgEl("circle", {
+      cx: 160, cy: ZONE.y + ZONE.h / 2, r: 60, fill: "none",
+      stroke: "var(--accent-2)", "stroke-width": 3, opacity: 0.8,
+      style: "transition: r 1000ms linear;"
+    });
+    svg.appendChild(ring);
+    
+    showLabel(labelHost, "RELEASE!", "var(--accent)");
+
+    const pitchStartTime = Date.now();
+    let releaseTriggered = false;
+    let clickTime = 0;
+
+    // 링 크기 축소 애니메이션 프레임
+    const ringFrame = () => {
+      if (!isInteractiveActive || releaseTriggered) return;
+      const elapsed = Date.now() - pitchStartTime;
+      const p = Math.min(1.0, elapsed / duration);
+      const r = 60 - (60 - 15) * p;
+      ring.setAttribute("r", r.toFixed(1));
+      if (p < 1.0) {
+        requestAnimationFrame(ringFrame);
+      }
+    };
+    requestAnimationFrame(ringFrame);
+
+    return new Promise(resolve => {
+      const onRelease = () => {
+        if (releaseTriggered) return;
+        releaseTriggered = true;
+        clickTime = Date.now();
+        svg.removeEventListener("click", onRelease);
+        ring.remove();
+
+        const elapsed = clickTime - pitchStartTime;
+        const p = elapsed / duration;
+
+        const controlStat = state.player?.control ?? 50;
+        const perfectWin = 0.05 + (controlStat - 50) * 0.0003;
+        const groupWin = 0.14 + (controlStat - 50) * 0.0006;
+
+        let finalResult = "1B";
+        let feedbackText = "MEATBALL!";
+        let feedbackColor = "var(--bad)";
+
+        if (Math.abs(p - 0.82) <= perfectWin / 2) {
+          finalResult = Math.random() < 0.65 ? "K" : "OUT";
+          feedbackText = "PERFECT PITCH!";
+          feedbackColor = "var(--accent-2)";
+          sfx("good");
+        } else if (Math.abs(p - 0.82) <= groupWin / 2) {
+          finalResult = Math.random() < 0.65 ? "OUT" : "1B";
+          feedbackText = "GOOD PITCH!";
+          feedbackColor = "var(--accent)";
+        } else if (p >= 0.58 && p <= 1.04) {
+          finalResult = Math.random() < 0.5 ? "1B" : "2B";
+          feedbackText = p < 0.82 ? "EARLY RELEASE!" : "LATE RELEASE!";
+          feedbackColor = "var(--warn)";
+        } else {
+          finalResult = Math.random() < 0.4 ? "HR" : "1B";
+          feedbackText = "MEATBALL!";
+          feedbackColor = "var(--bad)";
+        }
+
+        updateEventResult(event, finalResult);
+        hideLabel(labelHost);
+        showLabel(labelHost, feedbackText, feedbackColor);
+
+        // 투구 시작
+        sfx("pitch");
+        if (swingRef.fg) throwPush(swingRef);
+
+        const spec = PLAYBOOK[finalResult] ?? PLAYBOOK.OUT;
+        const { contact, final } = pickEndPoint(spec);
+
+        animateBall(ball, start, { x: contact.x, y: contact.y, r: 5 }, 380)
+          .then(() => {
+            if (spec.swing && (swingRef.fg || swingRef.bat)) {
+              swingBat(swingRef);
+            }
+            playResultSfx(finalResult);
+            return animateBall(ball, { x: contact.x, y: contact.y, r: 5 }, final, 700);
+          })
+          .then(() => {
+            if (spec.firework) {
+              spawnFireworks(fxHost ?? svg);
+              return waitMs(900);
+            }
+            return waitMs(220);
+          })
+          .then(() => {
+            ball.style.opacity = "0";
+            hideLabel(labelHost);
+            isInteractiveActive = false;
+            resolve();
+          });
+      };
+
+      svg.addEventListener("click", onRelease);
+
+      // 미조작 시 자동 실투
+      setTimeout(() => {
+        if (releaseTriggered) return;
+        releaseTriggered = true;
+        svg.removeEventListener("click", onRelease);
+        ring.remove();
+
+        const finalResult = Math.random() < 0.4 ? "HR" : "1B";
+        updateEventResult(event, finalResult);
+        hideLabel(labelHost);
+        showLabel(labelHost, "MEATBALL!", "var(--bad)");
+
+        sfx("pitch");
+        if (swingRef.fg) throwPush(swingRef);
+
+        const spec = PLAYBOOK[finalResult] ?? PLAYBOOK.OUT;
+        const { contact, final } = pickEndPoint(spec);
+
+        animateBall(ball, start, { x: contact.x, y: contact.y, r: 5 }, 380)
+          .then(() => {
+            if (spec.swing && (swingRef.fg || swingRef.bat)) {
+              swingBat(swingRef);
+            }
+            playResultSfx(finalResult);
+            return animateBall(ball, { x: contact.x, y: contact.y, r: 5 }, final, 700);
+          })
+          .then(() => {
+            if (spec.firework) {
+              spawnFireworks(fxHost ?? svg);
+              return waitMs(900);
+            }
+            return waitMs(220);
+          })
+          .then(() => {
+            ball.style.opacity = "0";
+            hideLabel(labelHost);
+            isInteractiveActive = false;
+            resolve();
+          });
+      }, duration * 1.1);
+    });
+  }
 }
 
 // 홈런 폭죽 — 화면에 여러 위치에서 색색의 점들이 방사형으로 퍼지며 페이드
@@ -457,6 +748,7 @@ function hideLabel(host) {
 
 // state.tickSpeed (1x=500ms) 에 비례 — 4x면 0.25배. waitMs/animateBall/swingBat/폭죽 공통.
 function speedMult() {
+  if (isInteractiveActive) return 1.0;
   return (state.tickSpeed ?? 500) / 500;
 }
 

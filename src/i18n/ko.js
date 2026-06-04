@@ -954,6 +954,7 @@ export const ko = {
     btnStartFinal: "경기 시작",
     btnSkipLive:    "건너뛰기",
     btnSkippedLive: "건너뛰는 중…",
+    manualPlay: "직접 조작 (Manual)",
     btnAcceptReward: "보너스 수령",
     finalLiveTitle: "{tournament} 결승전",
     finalChampion: "{tournament} 우승!",

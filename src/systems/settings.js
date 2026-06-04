@@ -14,6 +14,7 @@ const DEFAULTS = {
   muted: false,        // 전체 음소거
   bgmVolume: 0.4,      // BGM 볼륨 0~1
   sfxVolume: 0.6,      // 효과음 볼륨 0~1
+  manualPlay: true,    // 직접 조작 여부
 };
 
 export function loadSettings() {

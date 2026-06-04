@@ -41,6 +41,7 @@ import { computeHallOfFameScore, hofRank } from "../systems/hallOfFame.js";
 import { recordRun, loadRegressionMeta, unlockItem } from "../systems/regression.js";
 import { saveToCloud, getCloudSaveMeta } from "../cloud/cloudSave.js";
 import { isSignedIn, isAnonymousUser } from "../cloud/auth.js";
+import { saveSettings } from "../systems/settings.js";
 
 export function renderWeekly(root, route, opts = {}) {
   const { player, league, season } = state;
@@ -281,13 +282,33 @@ function playLiveGame(dialog, result, opts) {
   const opp = my === home ? away : home;
   const isHome = my === home;
 
-  // 1) 제목 + 우측 [스킵] 버튼 — 라이브 진행 즉시 종료 (cancelled = true → onComplete).
+  // 1) 제목 + 우측 [스킵] 버튼 & [직접 조작] 토글 — 라이브 진행 즉시 종료 (cancelled = true → onComplete).
   const titleRow = document.createElement("div");
   titleRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 8px;";
   const h = document.createElement("h2");
   h.style.cssText = "margin:0; font-size:15px;";
   h.textContent = opts.titleText;
   titleRow.appendChild(h);
+
+  const rightWrap = document.createElement("div");
+  rightWrap.style.cssText = "display:flex; align-items:center; gap:12px; flex-shrink:0;";
+
+  const manualLabel = document.createElement("label");
+  manualLabel.style.cssText = "display:inline-flex; align-items:center; gap:4px; font-size:11px; cursor:pointer; user-select:none; color:var(--muted);";
+  const manualChk = document.createElement("input");
+  manualChk.type = "checkbox";
+  manualChk.style.cssText = "margin:0; cursor:pointer;";
+  manualChk.checked = state.settings?.manualPlay !== false;
+  manualChk.addEventListener("change", () => {
+    if (!state.settings) state.settings = {};
+    state.settings.manualPlay = manualChk.checked;
+    saveSettings();
+  });
+  const manualSpan = document.createElement("span");
+  manualSpan.textContent = t("weekly.manualPlay");
+  manualLabel.appendChild(manualChk);
+  manualLabel.appendChild(manualSpan);
+  rightWrap.appendChild(manualLabel);
 
   const skipBtn = document.createElement("button");
   skipBtn.type = "button";
@@ -298,7 +319,8 @@ function playLiveGame(dialog, result, opts) {
     skipBtn.disabled = true;
     skipBtn.textContent = t("weekly.btnSkippedLive");
   });
-  titleRow.appendChild(skipBtn);
+  rightWrap.appendChild(skipBtn);
+  titleRow.appendChild(rightWrap);
 
   dialog.appendChild(titleRow);
 
