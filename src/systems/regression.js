@@ -40,6 +40,7 @@ export function defaultRegressionMeta() {
       startingStat: null,                           // "balanced" | "battingFocus" | "pitchingFocus"
       traits: [],                                   // 최대 3 — 장착 trait 키
       relics: [],                                   // 최대 2 — 장착 relic 키
+      equipment: { bat: 0, glove: 0, cleats: 0 },   // 장착 장비 상태
     },
   };
 }
@@ -67,6 +68,8 @@ function migrateMeta(data) {
   out.loadout = { ...base.loadout, ...(data?.loadout ?? {}) };
   out.loadout.traits = Array.isArray(data?.loadout?.traits) ? [...data.loadout.traits] : [];
   out.loadout.relics = Array.isArray(data?.loadout?.relics) ? [...data.loadout.relics] : [];
+  out.loadout.equipment = { ...base.loadout.equipment, ...(data?.loadout?.equipment ?? {}) };
+
   // 옛 세이브 자동 승계 — 이미 장착되어 있던 trait/relic 은 영구 소유로 간주.
   for (const k of out.loadout.traits) {
     if (!out.permanentPurchases.ownedTraits.includes(k)) out.permanentPurchases.ownedTraits.push(k);
@@ -269,12 +272,12 @@ export function purchaseRelic(key) {
 
 export function resetLoadout() {
   const m = ensureMeta();
-  m.loadout = { startingStat: null, traits: [], relics: [] };
+  m.loadout = { startingStat: null, traits: [], relics: [], equipment: { bat: 0, glove: 0, cleats: 0 } };
   saveRegressionMeta();
 }
 
-// 캐릭터 생성 직전 호출 — 현재 loadout snapshot 을 반환하고 즉시 reset.
-// 1회용 효과 (시작 능력치/특성/유물) 가 캐릭터당 1번만 적용되도록 보장.
+// 캐릭터 생성 직전 호출 — 현재 loadout snapshot 을 반환.
+// 장비/유물/특성은 장착 상태가 새 인생에도 유지되며, 1회성 startingStat만 리셋.
 export function consumeLoadoutForCharacter() {
   const m = ensureMeta();
   // 장착 유물의 레벨도 함께 넘김 — 캐릭터 효과 계산(traitEffects)에서 레벨 반영.
@@ -285,10 +288,33 @@ export function consumeLoadoutForCharacter() {
     traits: [...m.loadout.traits],
     relics: [...m.loadout.relics],
     relicLevels,
+    equipment: { ...(m.loadout.equipment ?? { bat: 0, glove: 0, cleats: 0 }) },
   };
-  resetLoadout();
+  m.loadout.startingStat = null;
+  saveRegressionMeta();
   return snapshot;
 }
+
+export function toggleEquipmentLoadout(type) {
+  const m = ensureMeta();
+  if (!m.loadout.equipment) {
+    m.loadout.equipment = { bat: 0, glove: 0, cleats: 0 };
+  }
+  if (!m.permanentPurchases.equipment) {
+    m.permanentPurchases.equipment = { bat: 0, glove: 0, cleats: 0 };
+  }
+  const curEquipped = m.loadout.equipment[type] ?? 0;
+  const ownedMax = m.permanentPurchases.equipment[type] ?? 0;
+  
+  if (curEquipped > 0) {
+    m.loadout.equipment[type] = 0;
+  } else if (ownedMax > 0) {
+    m.loadout.equipment[type] = ownedMax;
+  }
+  saveRegressionMeta();
+  return true;
+}
+
 
 export function purchaseEquipment(type) {
   const m = ensureMeta();

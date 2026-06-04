@@ -19,7 +19,7 @@ import {
   loadRegressionMeta, saveRegressionMeta,
   spendBalance, addBalance,
   purchasePermanent, setStartingStat, setTraits, setRelics,
-  purchaseTrait, purchaseRelic, purchaseEquipment,
+  purchaseTrait, purchaseRelic, purchaseEquipment, toggleEquipmentLoadout,
 } from "../systems/regression.js";
 import {
   TALENT_SLOTS_TIERS, STAT_KEYS, STAT_CAP_STEP, statCapCost,
@@ -399,8 +399,11 @@ function renderEquipmentTab() {
     const title = t(`shop.eqTitle.${type}`);
     let specDesc = "";
     
+    const isEquipped = (m.loadout.equipment?.[type] ?? 0) > 0;
+    const eqTag = isEquipped ? ` [${t("shop.equipped")}]` : "";
+    
     if (curLevel > 0 && currentSpec) {
-      specDesc += `${t("shop.current")}: ${t(currentSpec.nameKey)} (${formatStats(currentSpec.stats)})\n`;
+      specDesc += `${t("shop.current")}: ${t(currentSpec.nameKey)} (${formatStats(currentSpec.stats)})${eqTag}\n`;
     } else {
       specDesc += `${t("shop.current")}: ${t("shop.noEquipment")}\n`;
     }
@@ -432,6 +435,20 @@ function renderEquipmentTab() {
         state: "owned",
         onClick: null
       }));
+    }
+
+    // 장착/해제 토글 버튼 (보유 등급 1단계 이상일 때 노출)
+    if (curLevel > 0) {
+      const eqBtn = document.createElement("button");
+      eqBtn.type = "button";
+      eqBtn.style.cssText = "width:100%; margin:-4px 0 8px; padding:6px; font-size:11px;";
+      eqBtn.textContent = isEquipped ? t("shop.relicUnequip") : t("shop.relicEquip");
+      eqBtn.className = isEquipped ? "primary" : "";
+      eqBtn.addEventListener("click", () => {
+        toggleEquipmentLoadout(type);
+        renderShop(document.getElementById("view-root"), routeRef);
+      });
+      panel.appendChild(eqBtn);
     }
   }
 

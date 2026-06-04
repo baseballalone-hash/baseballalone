@@ -1778,7 +1778,7 @@ function renderAttributesBody(player) {
   eqRow.style.cssText = "display:grid; grid-template-columns:repeat(3, 1fr); gap:6px;";
 
   const types = ["bat", "glove", "cleats"];
-  const eqMeta = state.regression?.permanentPurchases?.equipment ?? { bat: 0, glove: 0, cleats: 0 };
+  const eqMeta = player.equipment ?? { bat: 0, glove: 0, cleats: 0 };
   
   for (const type of types) {
     const lvl = eqMeta[type] ?? 0;

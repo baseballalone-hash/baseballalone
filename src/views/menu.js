@@ -712,6 +712,7 @@ function renderCreatePanel(route) {
       traits: loadout.traits,
       relics: loadout.relics,
       relicLevels: loadout.relicLevels,
+      equipment: loadout.equipment,
     });
     startHighSchoolCareer(name, draft.talent, null);
     state.gameDate = createGameDate();

@@ -72,6 +72,7 @@ export function createPlayer({
   traits = [],
   relics = [],
   relicLevels = {},
+  equipment = { bat: 0, glove: 0, cleats: 0 },
 }) {
   const talentList = Array.isArray(talents) && talents.length > 0 ? [...talents] : [talent];
   // 시작 스탯: 평균(50) 살짝 위 — 16세 유망주가 동급 또래보다 약간 두각. 회귀 시스템으로 더 높은 값에서 시작하는 안도 지원.
@@ -145,6 +146,7 @@ export function createPlayer({
     traits: traitList,
     relics: relicList,
     relicLevels: { ...relicLevels },   // 장착 유물 레벨 — traitEffects 가 효과 스케일에 사용
+    equipment: { ...equipment },       // 장착된 장비 레벨 스냅샷
   };
 }
 
@@ -679,8 +681,7 @@ function conditionModifier(condition) {
 }
 
 export function getEquipmentStats(player) {
-  if (!state.regression) loadRegressionMeta();
-  const eq = state.regression?.permanentPurchases?.equipment ?? { bat: 0, glove: 0, cleats: 0 };
+  const eq = player?.equipment ?? { bat: 0, glove: 0, cleats: 0 };
   const bonuses = {};
   for (const type of ["bat", "glove", "cleats"]) {
     const lvl = eq[type] ?? 0;
