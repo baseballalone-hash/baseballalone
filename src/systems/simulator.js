@@ -94,6 +94,25 @@ function simulateAtBat(batter, pitcher, opts = {}) {
   const control  = p.control ?? 50;
   const breaking = p.breaking ?? 50;
 
+  // 플래툰 매치업 보너스/패널티 계산
+  const bats = b.bats ?? "R";
+  const throws_ = p.throws ?? "R";
+  const isOpposite = bats === "S" || bats !== throws_;
+  const isSame = bats !== "S" && bats === throws_;
+
+  let platoonK = 0;
+  let platoonBB = 0;
+  let platoonHit = 0;
+
+  if (isOpposite) {
+    platoonK = -2.5;   // 타자 삼진율 감소
+    platoonBB = 2.5;   // 타자 출루율(볼넷) 증가
+    platoonHit = 2.5;  // 타자 피안타율(인플레이) 증가
+  } else if (isSame) {
+    platoonK = 3.0;    // 투수 삼진율 증가
+    platoonHit = -3.0; // 투수 피안타율(인플레이) 감소
+  }
+
   // 투수 stamina(지구력) — 등판 후 누적 타자수가 스태미나 기반 용량을 넘으면 구위·제구 저하.
   //   capacity: stamina 50=18타자, 100=27, 150=36. 초과분 12타자에 걸쳐 overwork 0→1.
   //   fatiguePenalty: stuffAvg·control 에서 최대 -12 (지친 투수는 안타·볼넷·사구 ↑).
@@ -126,8 +145,8 @@ function simulateAtBat(batter, pitcher, opts = {}) {
 
   // 계수 감쇄 — 실제 야구 매치업 spread 에 가깝게. (기초타율 보정: kChance 22→21, inPlay 30→33 으로 50v50 AVG ~.250)
   // mentalEdge: 고압 상황에서 고멘탈 투수는 볼넷↓ (clamp 전 가산).
-  const kChance = clamp(21 - contactDiff * 0.28 - eyeDiff * 0.10, 5, 38);
-  const bbChance = clamp(9 + eyeDiff * 0.22 - mentalEdge * 0.04, 3, 22);
+  const kChance = clamp(21 - contactDiff * 0.28 - eyeDiff * 0.10 + platoonK, 5, 38);
+  const bbChance = clamp(9 + eyeDiff * 0.22 - mentalEdge * 0.04 + platoonBB, 3, 22);
   const hbpChance = clamp(1.0 - (effControl - 50) * 0.03, 0.3, 3.0);
 
   if (r < kChance) return { type: "K" };
@@ -136,7 +155,7 @@ function simulateAtBat(batter, pitcher, opts = {}) {
 
   // 끝내기 부스트 — clutch ×2 (multiplier) + lucky_bat +5%p (flat). 9회+ 메인 home batter 한정.
   // mentalEdge: 고압 상황에서 고멘탈 투수는 인플레이 안타 억제.
-  let inPlayHitChance = clamp(33 + contactDiff * 0.24 - mentalEdge * 0.08, 20, 55);
+  let inPlayHitChance = clamp(33 + contactDiff * 0.24 - mentalEdge * 0.08 + platoonHit, 20, 55);
   if (walkoffMult !== 1 || walkoffAddPct !== 0) {
     inPlayHitChance = clamp(inPlayHitChance * walkoffMult + walkoffAddPct, 20, 95);
   }

@@ -318,10 +318,31 @@ export function applyTraining(player, trainingKey, forcedStat = null) {
     : 1;
   // 훈련 효율 배수 — mentor_letter (멘토의 편지). 모든 훈련 획득량에 곱연산.
   const trainEff = effectMultiplier(player, "trainEfficiency");
+
+  // 핸드 타입별 훈련 효율 배수 (1.1x)
+  let handMult = 1.0;
+  if (player.hand === "right") {
+    if (trainingKey === "batting" || trainingKey === "weight") {
+      handMult = 1.1;
+    }
+  } else if (player.hand === "left") {
+    if (trainingKey === "breaking_drill") {
+      handMult = 1.1;
+    }
+  } else if (player.hand === "mixed") {
+    if (trainingKey === "running") {
+      handMult = 1.1;
+    }
+  } else if (player.hand === "lefty_rb") {
+    if (trainingKey === "fielding" || trainingKey === "mental") {
+      handMult = 1.1;
+    }
+  }
+
   const gained = {};
   const trainStats = forcedStat ? [forcedStat] : tr.stats;
   for (const stat of trainStats) {
-    const base = (0.5 + Math.random() * 0.9) * TRAIN_GAIN_COEFF * firstSeasonBoost * trainEff;
+    const base = (0.5 + Math.random() * 0.9) * TRAIN_GAIN_COEFF * firstSeasonBoost * trainEff * handMult;
     const boost = talentBoost[stat] ?? 1.0;
     const cap = getPlayerStatCap(player, stat);
     const target = player.batter[stat] !== undefined ? player.batter : player.pitcher;
