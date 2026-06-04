@@ -23,12 +23,12 @@ package-lock.json
 .env
 .env.local
 
-# Claude Code 로컬 설정 (개인 권한)
-.claude/settings.local.json
+# 로컬 설정 (개인 권한)
+.settings.local.json
 probe-debug.mjs
 
-# Gemini 원본 이미지 (대용량 — 가공본만 assets/ 에 커밋)
-gemini_images/
+# 원본 이미지 (대용량)
+source_images/
 
-# BGM 원본 WAV (대용량 — 가공본만 assets/audio 에 커밋)
-aibgm/
+# BGM 원본 (대용량)
+source_audio/

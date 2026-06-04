@@ -5,10 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- 제목은 src/main.js 에서 현재 locale 기준으로 갱신 (기본 영어) -->
   <title>Ninth Inning Rebirth</title>
+  <meta name="description" content="Live a baseball player's entire career — from high-school rookie to retirement. Set your training, manage condition and injuries, and watch every season simulate in this baseball life-sim." />
+
+  <!-- Favicon / app icon -->
+  <link rel="icon" href="favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
+  <!-- Open Graph / social preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Ninth Inning Rebirth" />
+  <meta property="og:description" content="A baseball career life-sim: grow a player from high-school rookie to retirement, one season at a time." />
+  <meta property="og:image" content="https://baseball-alone.web.app/assets/img/title-hero.webp" />
+  <meta property="og:url" content="https://baseball-alone.web.app/" />
+  <meta name="twitter:card" content="summary_large_image" />
+
   <link rel="stylesheet" href="styles/main.css?v=8" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
+  <!-- HTTP 캐시는 firebase.json hosting.headers 에서 제어 (HTML no-cache). dev용 no-cache meta 제거. -->
 
   <!-- ───────────────────────────────────────────────────────────────
        게임 광고(모네타이즈) — GameMonetize.com SDK (웹게임 전용 전면/보상형 광고).

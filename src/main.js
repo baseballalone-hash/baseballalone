@@ -13,7 +13,7 @@ import { loadSettings } from "./systems/settings.js";
 import { initFirebase } from "./cloud/firebase.js";
 import { initAuth } from "./cloud/auth.js";
 import {
-  t, loadLocaleFromStorage,
+  t, loadLocaleFromStorage, getLocale,
 } from "./i18n/index.js";
 import { openSettingsModal } from "./views/settingsModal.js";
 import { initAudioUnlock, playBgm, stopBgm, sfx } from "./assets/audio.js";
@@ -53,6 +53,8 @@ function updateChrome() {
     pauseToggle.setAttribute("aria-label", state.paused ? t("weekly.btnPlay") : t("weekly.btnPause"));
   }
   document.title = t("app.title");
+  // 현재 locale 을 <html lang> 에 반영 (접근성/SEO — 한·영 병행 게임).
+  document.documentElement.lang = getLocale();
 }
 
 function updateTopbar() {
