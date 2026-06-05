@@ -74,12 +74,13 @@ export function createCharacterSVG(faceId, hand = "right", size = { w: 180, h: 2
   
   const layers = [];
   
+  // (0) 기본 완성형 일러스트 바탕 레이어 (몸통 및 기본 실루엣 유지용)
+  layers.push(`assets/img/char-${pose}-${presetKey.toLowerCase()}.webp`);
+  
   // (1) 뒷머리 레이어
   if (face.style !== "bald" && face.style !== "none") {
     layers.push(`assets/img/hair-back-${face.style}-color${hairColorIdx}.webp`);
   }
-  // (2) 몸통 레이어
-  layers.push(`assets/img/body-${pose}-skin${skinIdx}.webp`);
   // (3) 야구화 레이어
   if (equipment.cleats > 0) {
     layers.push(`assets/img/eq-cleats-lvl${equipment.cleats}-${pose}.webp`);
