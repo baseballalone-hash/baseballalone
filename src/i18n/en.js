@@ -1140,12 +1140,12 @@ export const en = {
     titleWithTeamLevel: "{name} — {team} {level}",
   },
   custom: {
-    skin: "Skin Color",
-    hairColor: "Hair Color",
-    hairStyle: "Hair Style",
-    accessory: "Accessory",
-    eye: "Eyes",
-    shape: "Face Shape",
+    skinLabel: "Skin Color",
+    hairColorLabel: "Hair Color",
+    hairStyleLabel: "Hair Style",
+    accessoryLabel: "Accessory",
+    eyeLabel: "Eyes",
+    shapeLabel: "Face Shape",
     style: {
       short: "Buzz cut",
       curly: "Curly",

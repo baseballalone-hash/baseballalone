@@ -1146,12 +1146,12 @@ export const ko = {
     titleWithTeamLevel: "{name} — {team} {level}",
   },
   custom: {
-    skin: "피부색",
-    hairColor: "머리색",
-    hairStyle: "머리스타일",
-    accessory: "액세서리",
-    eye: "눈모양",
-    shape: "얼굴형",
+    skinLabel: "피부색",
+    hairColorLabel: "머리색",
+    hairStyleLabel: "머리스타일",
+    accessoryLabel: "액세서리",
+    eyeLabel: "눈모양",
+    shapeLabel: "얼굴형",
     style: {
       short: "스포츠컷",
       curly: "곱슬머리",

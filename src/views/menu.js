@@ -976,12 +976,12 @@ function renderFaceGallery() {
     
     // 파츠 타입별 타이틀과 렌더링 루프
     const partTypes = [
-      { name: t("custom.skin"), options: SKIN_COLORS, current: parts[0], colorType: true, idx: 0 },
-      { name: t("custom.hairColor"), options: HAIR_COLORS, current: parts[1], colorType: true, idx: 1 },
-      { name: t("custom.hairStyle"), options: HAIR_STYLES, current: parts[2], transPrefix: "custom.style.", idx: 2 },
-      { name: t("custom.accessory"), options: ACCESSORIES, current: parts[3], transPrefix: "custom.acc.", idx: 3 },
-      { name: t("custom.eye"), options: EYES, current: parts[4], transPrefix: "custom.eye.", idx: 4 },
-      { name: t("custom.shape"), options: FACE_SHAPES, current: parts[5], transPrefix: "custom.shape.", idx: 5 }
+      { name: t("custom.skinLabel"), options: SKIN_COLORS, current: parts[0], colorType: true, idx: 0 },
+      { name: t("custom.hairColorLabel"), options: HAIR_COLORS, current: parts[1], colorType: true, idx: 1 },
+      { name: t("custom.hairStyleLabel"), options: HAIR_STYLES, current: parts[2], transPrefix: "custom.style.", idx: 2 },
+      { name: t("custom.accessoryLabel"), options: ACCESSORIES, current: parts[3], transPrefix: "custom.acc.", idx: 3 },
+      { name: t("custom.eyeLabel"), options: EYES, current: parts[4], transPrefix: "custom.eye.", idx: 4 },
+      { name: t("custom.shapeLabel"), options: FACE_SHAPES, current: parts[5], transPrefix: "custom.shape.", idx: 5 }
     ];
 
     for (const pt of partTypes) {

@@ -81,15 +81,16 @@ export function createCharacterSVG(faceId, hand = "right", size = { w: 180, h: 2
   if (imgDef) {
     const battingLeft = hand === "left" || hand === "mixed";
     
-    // 1. 고화질 카툰 일러스트 캐릭터 뼈대 (이미지 얹기)
+    // 1. 고화질 카툰 일러스트 캐릭터 뼈대 (이미지 얹기 - 브라우저 호환성을 위한 네임스페이스 수동 처리 추가)
     const mainImg = svgEl("image", {
-      href: imgDef.src,
       x: 0,
       y: 10,
       width: 180,
       height: 240,
       transform: battingLeft ? "scale(-1 1) translate(-180 0)" : "",
     });
+    mainImg.setAttributeNS("http://www.w3.org/1999/xlink", "href", imgDef.src);
+    mainImg.setAttribute("href", imgDef.src);
     root.appendChild(mainImg);
     
     // 2. 그 위에 안경, 장비(배트, 장갑, 스파이크, 배지)를 덮어씌워 얹기
@@ -125,6 +126,11 @@ function drawEquipmentOverlay(faceId, hand, talent, equipment) {
     ? "scale(-1 1) translate(-180 0)" 
     : "";
   const innerG = group([], { transform });
+
+  // 0. 커스텀 얼굴 오버레이 (일러스트 뼈대 머리 부분에 정확히 얹기)
+  const headG = group([], { transform: "translate(68 30) scale(0.44)" });
+  headG.appendChild(createFaceGroup(faceId));
+  innerG.appendChild(headG);
 
   // 1. 신발 오버레이 (cleats)
   const cleatsLvl = equipment?.cleats ?? 0;
