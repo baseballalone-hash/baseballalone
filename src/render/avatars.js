@@ -49,8 +49,20 @@ export function getFace(id) {
   return { ...found, shape: "round" };
 }
 
-// faceId → SVG element (viewBox 0 0 100 100 기준)
+// faceId → element (viewBox 0 0 100 100 기준 또는 크롭된 일러스트 이미지)
 export function createFaceSVG(faceId, size = 80) {
+  const isCustomFace = faceId && faceId.startsWith("f_");
+  if (!isCustomFace) {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = `width:${size}px; height:${size}px; border-radius:50%; overflow:hidden; display:flex; justify-content:center; align-items:center; background:var(--panel-2); flex-shrink:0;`;
+    
+    const img = document.createElement("img");
+    img.src = `assets/img/char-bat-${faceId.toLowerCase()}.webp`;
+    img.style.cssText = "width:100%; height:100%; object-fit:cover; object-position:50% 12%; transform:scale(2.2); pointer-events:none;";
+    wrap.appendChild(img);
+    return wrap;
+  }
+
   const face = getFace(faceId);
   const root = svg(size, size, "0 0 100 100");
   root.appendChild(svgEl("rect", { x: 0, y: 0, width: 100, height: 100, fill: "transparent" }));

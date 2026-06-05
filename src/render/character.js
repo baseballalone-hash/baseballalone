@@ -189,10 +189,15 @@ function drawEquipmentOverlay(faceId, hand, talent, equipment) {
     : "";
   const innerG = group([], { transform });
 
+  const isCustomFace = faceId && faceId.startsWith("f_");
+
   // 0. 커스텀 얼굴 오버레이 (일러스트 뼈대 머리 부분에 실시간 조작 덮어씌우기)
-  const headG = group([], { transform: "translate(68 30) scale(0.44)" });
-  headG.appendChild(createFaceGroup(faceId));
-  innerG.appendChild(headG);
+  // 프리셋 f1~f6인 경우 일러스트에 얼굴이 이미 이쁘게 그려져 있으므로 SVG를 덧그리지 않습니다.
+  if (isCustomFace) {
+    const headG = group([], { transform: "translate(68 30) scale(0.44)" });
+    headG.appendChild(createFaceGroup(faceId));
+    innerG.appendChild(headG);
+  }
 
   // 1. 신발 오버레이 (cleats)
   const cleatsLvl = equipment?.cleats ?? 0;
@@ -261,7 +266,7 @@ function drawEquipmentOverlay(faceId, hand, talent, equipment) {
     innerG.appendChild(svgEl("line", {
       x1: 128, y1: 86,
       x2: 168, y2: 28,
-      stroke: batColor,
+      stroke: battingLeft ? batColor : batColor, // 방향별 색상 동일
       "stroke-width": "6",
       "stroke-linecap": "round",
     }));
@@ -285,22 +290,24 @@ function drawEquipmentOverlay(faceId, hand, talent, equipment) {
     }));
   }
 
-  // 4. 안경 오버레이 (glasses)
-  const face = getFace(faceId);
-  if (face.accessory === "glasses") {
-    // 일러스트 얼굴 위치에 안경 오버레이
-    const eyeY = 55.5;
-    const leftLensX = 86.5;
-    const rightLensX = 93.5;
-    const radius = 6.5 * 0.44; // 약 2.8px
-    
-    innerG.appendChild(svgEl("circle", { cx: leftLensX, cy: eyeY, r: radius, fill: "rgba(255,255,255,0.22)", stroke: "#222", "stroke-width": "1.0" }));
-    innerG.appendChild(svgEl("circle", { cx: rightLensX, cy: eyeY, r: radius, fill: "rgba(255,255,255,0.22)", stroke: "#222", "stroke-width": "1.0" }));
-    
-    innerG.appendChild(svgEl("line", { x1: leftLensX + radius, y1: eyeY, x2: rightLensX - radius, y2: eyeY, stroke: "#222", "stroke-width": "0.8" }));
-    
-    innerG.appendChild(svgEl("line", { x1: leftLensX - 1.2, y1: eyeY - 1.5, x2: leftLensX + 1.2, y2: eyeY + 1.5, stroke: "#fff", "stroke-width": "0.6", opacity: 0.7 }));
-    innerG.appendChild(svgEl("line", { x1: rightLensX - 1.2, y1: eyeY - 1.5, x2: rightLensX + 1.2, y2: eyeY + 1.5, stroke: "#fff", "stroke-width": "0.6", opacity: 0.7 }));
+  // 4. 안경 오버레이 (glasses) - 오직 커스텀 얼굴일 때만 얹음 (f5 프리셋 등에는 이미 안경이 그려져 있음)
+  if (isCustomFace) {
+    const face = getFace(faceId);
+    if (face.accessory === "glasses") {
+      // 일러스트 얼굴 위치에 안경 오버레이
+      const eyeY = 55.5;
+      const leftLensX = 86.5;
+      const rightLensX = 93.5;
+      const radius = 6.5 * 0.44; // 약 2.8px
+      
+      innerG.appendChild(svgEl("circle", { cx: leftLensX, cy: eyeY, r: radius, fill: "rgba(255,255,255,0.22)", stroke: "#222", "stroke-width": "1.0" }));
+      innerG.appendChild(svgEl("circle", { cx: rightLensX, cy: eyeY, r: radius, fill: "rgba(255,255,255,0.22)", stroke: "#222", "stroke-width": "1.0" }));
+      
+      innerG.appendChild(svgEl("line", { x1: leftLensX + radius, y1: eyeY, x2: rightLensX - radius, y2: eyeY, stroke: "#222", "stroke-width": "0.8" }));
+      
+      innerG.appendChild(svgEl("line", { x1: leftLensX - 1.2, y1: eyeY - 1.5, x2: leftLensX + 1.2, y2: eyeY + 1.5, stroke: "#fff", "stroke-width": "0.6", opacity: 0.7 }));
+      innerG.appendChild(svgEl("line", { x1: rightLensX - 1.2, y1: eyeY - 1.5, x2: rightLensX + 1.2, y2: eyeY + 1.5, stroke: "#fff", "stroke-width": "0.6", opacity: 0.7 }));
+    }
   }
 
   // 5. 글러브 배지 오버레이
