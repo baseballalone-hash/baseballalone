@@ -6,7 +6,8 @@ def clean_project():
         "probe-career.mjs",
         "probe-regression.mjs",
         "probe.mjs",
-        "create_sample_assets.py"
+        "create_sample_assets.py",
+        "generate_all_assets.py"
     ]
     
     cleaned_count = 0
