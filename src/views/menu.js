@@ -821,18 +821,20 @@ function renderPreview() {
   card.style.textAlign = "center";
 
   ensureSpinnerStyle();
-  const battingLeft = draft.hand === "left" || draft.hand === "mixed";
   
-  // 사용자의 세부 조작(안경, 헬멧 등)에 맞춰 가장 가까운 고화질 일러스트 에셋(F1~F6) 매핑
-  const presetKey = mapCustomToPreset(draft.faceId).toUpperCase();
+  // 동일한 배팅 자세 뼈대 위에 안경, 머리스타일, 장비 등이 실시간으로 덮어씌워지는 카툰 일러스트
+  const charSVG = createCharacterSVG(
+    draft.faceId,
+    draft.hand,
+    { w: 120, h: 160 },
+    draft.talent,
+    { bat: 0, glove: 0, cleats: 0 }
+  );
   
-  // 이미지 크기를 160px 로 대폭 상향하여 시원하게 노출
-  const charImg = createImage("charBat" + presetKey, {
-    style: "animation:nir-idle 3.2s ease-in-out infinite;",
-    imgStyle: `height:160px; width:auto; margin:0 auto;${battingLeft ? " transform:scaleX(-1);" : ""}`,
-    fallback: () => createCharacterSVG(draft.faceId, draft.hand, { w: 120, h: 160 }, draft.talent, { bat: 0, glove: 0, cleats: 0 }),
-  });
-  card.appendChild(charImg);
+  // 생동감을 주는 미세 흔들림 애니메이션 추가
+  charSVG.style.animation = "nir-idle 3.2s ease-in-out infinite";
+  charSVG.style.margin = "0 auto";
+  card.appendChild(charSVG);
 
   const name = document.createElement("div");
   name.style.marginTop = "10px";
