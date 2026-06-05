@@ -13,9 +13,9 @@ export const FACES = [
 
 export const SKIN_COLORS = ["#ecc7a1", "#e6b889", "#f0c89b", "#e3b07a", "#eccfa9"];
 export const HAIR_COLORS = ["#1a1a1a", "#2a1a0f", "#5a3a1d", "#b03030", "#d8a040"];
-export const HAIR_STYLES = ["short", "curly", "neat", "long", "bald", "spiky"];
-export const ACCESSORIES = ["none", "cap", "glasses", "helmet", "scar", "blush"];
-export const EYES = ["calm", "sharp", "smile", "cool", "fierce", "blank", "dizzy"];
+export const HAIR_STYLES = ["short", "curly", "neat", "long", "spiky", "bald"]; // bald는 렌더링 생략
+export const ACCESSORIES = ["none", "cap", "glasses", "helmet", "scar", "blush"]; // none은 렌더링 생략
+export const EYES = ["calm", "sharp", "smile", "cool", "fierce"]; // 5종으로 축소
 export const FACE_SHAPES = ["round", "square", "vshape"];
 
 export function getFace(id) {

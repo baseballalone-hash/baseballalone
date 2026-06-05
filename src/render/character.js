@@ -1,6 +1,5 @@
-// 3등신 캐릭터 (배팅 자세) — 로컬 file:// 프로토콜 호환 카툰 일러스트 하이브리드 아바타 시스템
-import { svg, svgEl, group } from "./svg.js";
-import { createFaceGroup, getFace } from "./avatars.js";
+// 3등신 캐릭터 (배팅 자세) — 100% 일러스트 이미지 레이어 중첩 기반 캐릭터 아바타 시스템
+import { getFace, SKIN_COLORS, HAIR_COLORS } from "./avatars.js";
 import { IMAGES } from "../assets/manifest.js";
 import { t } from "../i18n/index.js";
 
@@ -12,7 +11,7 @@ function mapCustomToPreset(faceId) {
   const accIdx = parseInt(parts[4]) || 0;       // accessory
 
   // ACCESSORIES = ["none", "cap", "glasses", "helmet", "scar", "blush"]
-  // HAIR_STYLES = ["short", "curly", "neat", "long", "bald", "spiky"]
+  // HAIR_STYLES = ["short", "curly", "neat", "long", "spiky", "bald"]
   if (accIdx === 3) return "f2"; // helmet -> f2
   if (accIdx === 1) return "f4"; // cap -> f4
   if (accIdx === 2) return "f5"; // glasses -> f5
@@ -26,7 +25,7 @@ function handLabel(hand) {
 }
 
 // hand: "right" (우투우타) | "left" (좌투좌타) | "mixed" (우투좌타)
-// 반환: HTML div 컨테이너 (file:// 프로토콜 보안 정책 회피용 <img> + SVG 오버레이 구조)
+// 반환: HTML div 컨테이너 (100% 투명 배경 WebP/PNG 일러스트 레이어 중첩 및 폴백 구조)
 export function createCharacterSVG(faceId, hand = "right", size = { w: 180, h: 240 }, talent = "all_round", equipment = { bat: 0, glove: 0, cleats: 0 }) {
   const container = document.createElement("div");
   container.style.position = "relative";
@@ -34,550 +33,135 @@ export function createCharacterSVG(faceId, hand = "right", size = { w: 180, h: 2
   container.style.height = size.h + "px";
   container.style.overflow = "hidden";
 
-  // 발 밑 그림자 및 흙바닥 등 배경 장식용 백그라운드 SVG
-  const bgSVG = svg(size.w, size.h, "0 0 180 240");
-  bgSVG.style.position = "absolute";
-  bgSVG.style.left = "0";
-  bgSVG.style.top = "0";
-  bgSVG.style.width = "100%";
-  bgSVG.style.height = "100%";
-  bgSVG.style.pointerEvents = "none";
-
-  const defs = svgEl("defs", {}, []);
-  const grad = svgEl("linearGradient", { id: "dirtGrad", x1: "0%", y1: "0%", x2: "0%", y2: "100%" });
-  grad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "rgba(120,80,40,0.0)" }));
-  grad.appendChild(svgEl("stop", { offset: "100%", "stop-color": "rgba(120,80,40,0.3)" }));
-  defs.appendChild(grad);
-  bgSVG.appendChild(defs);
-
-  bgSVG.appendChild(svgEl("ellipse", {
-    cx: 90, cy: 226, rx: 60, ry: 8,
-    fill: "rgba(255,255,255,0.06)",
-  }));
-  bgSVG.appendChild(svgEl("rect", {
-    x: 0, y: 220, width: 180, height: 20,
-    fill: "url(#dirtGrad)",
-  }));
-  bgSVG.appendChild(svgEl("ellipse", {
-    cx: 90, cy: 206, rx: 42, ry: 6,
-    fill: "rgba(0,0,0,0.35)",
-  }));
-  container.appendChild(bgSVG);
-
   const presetKey = mapCustomToPreset(faceId);
-  const imgDef = IMAGES["charBat" + presetKey.toUpperCase()];
+  const isCustomFace = faceId && faceId.startsWith("f_");
+  const battingLeft = hand === "left" || hand === "mixed";
+  const pose = "bat"; // 타격자세 기본
 
-  if (imgDef) {
-    const battingLeft = hand === "left" || hand === "mixed";
-    
-    // 1. 일반 <img> 엘리먼트 (배경 일러스트 뼈대) - file:// 프로토콜에서 100% 정상 로드
-    const img = document.createElement("img");
-    img.src = imgDef.src;
-    img.style.position = "absolute";
-    img.style.left = "0";
-    img.style.top = "4.16%"; // 10/240 오프셋 보정
-    img.style.width = "100%";
-    img.style.height = "auto";
-    img.style.display = "block";
-    img.style.pointerEvents = "none";
-    if (battingLeft) {
-      img.style.transform = "scaleX(-1)";
-    }
-    container.appendChild(img);
-    
-    // 2. 그 위에 얹어지는 투명 SVG 오버레이 (안경, 커스텀얼굴, 장비 레이어)
-    const overlaySVG = svg(size.w, size.h, "0 0 180 240");
-    overlaySVG.style.position = "absolute";
-    overlaySVG.style.left = "0";
-    overlaySVG.style.top = "0";
-    overlaySVG.style.width = "100%";
-    overlaySVG.style.height = "100%";
-    overlaySVG.style.pointerEvents = "none";
+  // 1. 커스텀이 아닌 기본 프리셋 얼굴인 경우:
+  // 6종 전신 일러스트(f1~f6) 위에 장비 레이어만 심플하게 중첩
+  if (!isCustomFace) {
+    const bgImg = document.createElement("img");
+    bgImg.src = `assets/img/char-${pose}-${presetKey.toLowerCase()}.webp`;
+    bgImg.style.cssText = "position:absolute; left:0; top:0; width:100%; height:100%; object-fit:cover; pointer-events:none;";
+    if (battingLeft) bgImg.style.transform = "scaleX(-1)";
+    container.appendChild(bgImg);
 
-    // 장비 그라데이션 정의
-    const overlayDefs = svgEl("defs", {}, []);
-    const goldGrad = svgEl("linearGradient", { id: "goldBatGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%" });
-    goldGrad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#ffe680" }));
-    goldGrad.appendChild(svgEl("stop", { offset: "40%", "stop-color": "#fbbf24" }));
-    goldGrad.appendChild(svgEl("stop", { offset: "80%", "stop-color": "#d97706" }));
-    goldGrad.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#78350f" }));
-    overlayDefs.appendChild(goldGrad);
+    // 장비 레이어 얹기
+    const eqLayers = [];
+    if (equipment.cleats > 0) eqLayers.push(`assets/img/eq-cleats-lvl${equipment.cleats}-${pose}.webp`);
+    if (equipment.glove > 0) eqLayers.push(`assets/img/eq-glove-lvl${equipment.glove}-${pose}.webp`);
+    if (equipment.bat > 0) eqLayers.push(`assets/img/eq-bat-lvl${equipment.bat}-${pose}.webp`);
 
-    const woodGrad = svgEl("linearGradient", { id: "woodBatGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%" });
-    woodGrad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#b48a53" }));
-    woodGrad.appendChild(svgEl("stop", { offset: "70%", "stop-color": "#8a5a2a" }));
-    woodGrad.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#5c3a17" }));
-    overlayDefs.appendChild(woodGrad);
+    eqLayers.forEach(src => {
+      const eqImg = document.createElement("img");
+      eqImg.src = src;
+      eqImg.style.cssText = "position:absolute; left:0; top:0; width:100%; height:100%; object-fit:cover; pointer-events:none;";
+      if (battingLeft) eqImg.style.transform = "scaleX(-1)";
+      container.appendChild(eqImg);
+    });
 
-    const silverGrad = svgEl("linearGradient", { id: "silverGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%" });
-    silverGrad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#f1f5f9" }));
-    silverGrad.appendChild(svgEl("stop", { offset: "50%", "stop-color": "#cbd5e1" }));
-    silverGrad.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#64748b" }));
-    overlayDefs.appendChild(silverGrad);
-    overlaySVG.appendChild(overlayDefs);
-
-    const overlay = drawEquipmentOverlay(faceId, hand, talent, equipment);
-    overlaySVG.appendChild(overlay);
-    
-    container.appendChild(overlaySVG);
-  } else {
-    // 폴백 모드: 일러스트 자산이 아예 정의되지 않았을 때
-    const fallbackSVG = svg(size.w, size.h, "0 0 180 240");
-    fallbackSVG.style.position = "absolute";
-    fallbackSVG.style.left = "0";
-    fallbackSVG.style.top = "0";
-    fallbackSVG.style.width = "100%";
-    fallbackSVG.style.height = "100%";
-
-    const fallbackDefs = svgEl("defs", {}, []);
-    const fGold = svgEl("linearGradient", { id: "goldBatGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%" });
-    fGold.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#ffe680" }));
-    fGold.appendChild(svgEl("stop", { offset: "40%", "stop-color": "#fbbf24" }));
-    fGold.appendChild(svgEl("stop", { offset: "80%", "stop-color": "#d97706" }));
-    fGold.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#78350f" }));
-    fallbackDefs.appendChild(fGold);
-
-    const fWood = svgEl("linearGradient", { id: "woodBatGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%" });
-    fWood.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#b48a53" }));
-    fWood.appendChild(svgEl("stop", { offset: "70%", "stop-color": "#8a5a2a" }));
-    fWood.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#5c3a17" }));
-    fallbackDefs.appendChild(fWood);
-
-    const fSilver = svgEl("linearGradient", { id: "silverGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%" });
-    fSilver.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#f1f5f9" }));
-    fSilver.appendChild(svgEl("stop", { offset: "50%", "stop-color": "#cbd5e1" }));
-    fSilver.appendChild(svgEl("stop", { offset: "100%", "stop-color": "#64748b" }));
-    fallbackDefs.appendChild(fSilver);
-    fallbackSVG.appendChild(fallbackDefs);
-
-    const charGroup = drawCharacterBody(faceId, hand, talent, equipment);
-    fallbackSVG.appendChild(charGroup);
-    container.appendChild(fallbackSVG);
+    // 최상단 손잡이 라벨링
+    appendHandLabel(container, hand);
+    return container;
   }
 
-  // 손잡이 라벨은 최상단에 겹쳐 그림
-  const labelSVG = svg(size.w, size.h, "0 0 180 240");
-  labelSVG.style.position = "absolute";
-  labelSVG.style.left = "0";
-  labelSVG.style.top = "0";
-  labelSVG.style.width = "100%";
-  labelSVG.style.height = "100%";
-  labelSVG.style.pointerEvents = "none";
+  // 2. 커스텀 얼굴(f_로 시작)인 경우:
+  // 기획서대로 85장 레이어 부품 방식(WebP)으로 겹쳐 렌더링
+  const face = getFace(faceId);
+  const skinIdx = SKIN_COLORS.indexOf(face.skin) + 1;
+  const hairColorIdx = HAIR_COLORS.indexOf(face.hair) + 1;
   
-  const label = svgEl("text", {
-    x: 90, y: 22,
-    "text-anchor": "middle",
-    fill: "#8b949e",
-    "font-size": "13",
-    "font-weight": "bold",
-    "font-family": "monospace",
-  });
-  label.textContent = handLabel(hand);
-  labelSVG.appendChild(label);
-  container.appendChild(labelSVG);
+  const layers = [];
+  
+  // (1) 뒷머리 레이어
+  if (face.style !== "bald" && face.style !== "none") {
+    layers.push(`assets/img/hair-back-${face.style}-color${hairColorIdx}.webp`);
+  }
+  // (2) 몸통 레이어
+  layers.push(`assets/img/body-${pose}-skin${skinIdx}.webp`);
+  // (3) 야구화 레이어
+  if (equipment.cleats > 0) {
+    layers.push(`assets/img/eq-cleats-lvl${equipment.cleats}-${pose}.webp`);
+  }
+  // (4) 얼굴형 레이어
+  layers.push(`assets/img/head-${face.shape}-skin${skinIdx}.webp`);
+  // (5) 눈모양 레이어
+  layers.push(`assets/img/eye-${face.eye}.webp`);
+  // (6) 코/입 공용 레이어
+  layers.push(`assets/img/face-features.webp`);
+  // (7) 앞머리 레이어
+  if (face.style !== "bald" && face.style !== "none") {
+    layers.push(`assets/img/hair-front-${face.style}-color${hairColorIdx}.webp`);
+  }
+  // (8) 액세서리 레이어
+  if (face.accessory && face.accessory !== "none") {
+    layers.push(`assets/img/acc-${face.accessory}.webp`);
+  }
+  // (9) 장비 레이어
+  if (equipment.glove > 0) {
+    layers.push(`assets/img/eq-glove-lvl${equipment.glove}-${pose}.webp`);
+  }
+  if (equipment.bat > 0) {
+    layers.push(`assets/img/eq-bat-lvl${equipment.bat}-${pose}.webp`);
+  }
 
+  let hasError = false;
+
+  // 부품 에셋이 아직 준비되지 않았을 때의 스마트 폴백
+  function applyFallback() {
+    container.innerHTML = "";
+    const fallbackImg = document.createElement("img");
+    const fallbackPreset = mapCustomToPreset(faceId);
+    fallbackImg.src = `assets/img/char-${pose}-${fallbackPreset.toLowerCase()}.webp`;
+    fallbackImg.style.cssText = "position:absolute; left:0; top:0; width:100%; height:100%; object-fit:cover; pointer-events:none;";
+    if (battingLeft) fallbackImg.style.transform = "scaleX(-1)";
+    container.appendChild(fallbackImg);
+
+    // 폴백 상황에서도 실시간 장비는 최대한 같이 얹어줌
+    const eqLayers = [];
+    if (equipment.cleats > 0) eqLayers.push(`assets/img/eq-cleats-lvl${equipment.cleats}-${pose}.webp`);
+    if (equipment.glove > 0) eqLayers.push(`assets/img/eq-glove-lvl${equipment.glove}-${pose}.webp`);
+    if (equipment.bat > 0) eqLayers.push(`assets/img/eq-bat-lvl${equipment.bat}-${pose}.webp`);
+
+    eqLayers.forEach(src => {
+      const eqImg = document.createElement("img");
+      eqImg.src = src;
+      eqImg.style.cssText = "position:absolute; left:0; top:0; width:100%; height:100%; object-fit:cover; pointer-events:none;";
+      if (battingLeft) eqImg.style.transform = "scaleX(-1)";
+      eqImg.onerror = () => eqImg.remove(); // 장비 레이어 에셋 누락 시 무시
+      container.appendChild(eqImg);
+    });
+
+    appendHandLabel(container, hand);
+  }
+
+  layers.forEach(src => {
+    const img = document.createElement("img");
+    img.src = src;
+    img.style.cssText = "position:absolute; left:0; top:0; width:100%; height:100%; object-fit:cover; pointer-events:none;";
+    if (battingLeft) img.style.transform = "scaleX(-1)";
+    
+    img.addEventListener("error", () => {
+      if (!hasError) {
+        hasError = true;
+        applyFallback(); // 레이어 리소스 에러 시 통이미지로 부드러운 폴백
+      }
+    });
+
+    container.appendChild(img);
+  });
+
+  appendHandLabel(container, hand);
   return container;
 }
 
-// 일러스트 뼈대 위에 안경, 헬멧, 장비, 그리고 커스텀 얼굴(실시간)을 정확히 겹쳐 덮어씌우는 오버레이 드로잉
-function drawEquipmentOverlay(faceId, hand, talent, equipment) {
-  const battingLeft = hand === "left" || hand === "mixed";
-  const g = group([]);
-  
-  const transform = battingLeft 
-    ? "scale(-1 1) translate(-180 0)" 
-    : "";
-  const innerG = group([], { transform });
-
-  const isCustomFace = faceId && faceId.startsWith("f_");
-
-  // 0. 커스텀 얼굴 오버레이 (일러스트 뼈대 머리 부분에 실시간 조작 덮어씌우기)
-  // 프리셋 f1~f6인 경우 일러스트에 얼굴이 이미 이쁘게 그려져 있으므로 SVG를 덧그리지 않습니다.
-  if (isCustomFace) {
-    const headG = group([], { transform: "translate(68 30) scale(0.44)" });
-    headG.appendChild(createFaceGroup(faceId));
-    innerG.appendChild(headG);
-  }
-
-  // 1. 신발 오버레이 (cleats)
-  const cleatsLvl = equipment?.cleats ?? 0;
-  if (cleatsLvl > 0) {
-    let footColor = "#1a1a1a";
-    let footDetail = "#333";
-    if (cleatsLvl === 1) {
-      footColor = "#3b82f6";
-      footDetail = "#1d4ed8";
-    } else if (cleatsLvl === 2) {
-      footColor = "#ef4444";
-      footDetail = "#b91c1c";
-    } else if (cleatsLvl === 3) {
-      footColor = "url(#goldBatGrad)";
-      footDetail = "#fbbf24";
-    }
-    
-    // 일러스트 발 위치에 스파이크 얹기 (x: 76, y: 204 / x: 104, y: 204)
-    innerG.appendChild(svgEl("ellipse", { cx: 76, cy: 204, rx: 11.5, ry: 5.5, fill: footColor, stroke: "#111", "stroke-width": "1.8" }));
-    innerG.appendChild(svgEl("line", { x1: 68, y1: 206, x2: 84, y2: 206, stroke: footDetail, "stroke-width": "2.2" }));
-    
-    innerG.appendChild(svgEl("ellipse", { cx: 104, cy: 204, rx: 11.5, ry: 5.5, fill: footColor, stroke: "#111", "stroke-width": "1.8" }));
-    innerG.appendChild(svgEl("line", { x1: 96, y1: 206, x2: 112, y2: 206, stroke: footDetail, "stroke-width": "2.2" }));
-  }
-
-  // 2. 배팅 장갑 오버레이 (glove)
-  const gloveLvl = equipment?.glove ?? 0;
-  if (gloveLvl > 0) {
-    let gloveColor = "#4ea4ff";
-    let gloveBorder = "#1d4ed8";
-    if (gloveLvl === 2) {
-      gloveColor = "#1e293b";
-      gloveBorder = "#0f172a";
-    } else if (gloveLvl === 3) {
-      gloveColor = "url(#goldBatGrad)";
-      gloveBorder = "#b45309";
-    }
-    
-    // 일러스트 손잡이 손 위치에 컬러 장갑 오버레이 (뒷손: 127,103 / 앞손: 99,109)
-    innerG.appendChild(svgEl("circle", { cx: 127, cy: 103, r: 6.5, fill: gloveColor, stroke: gloveBorder, "stroke-width": "1.5" }));
-    innerG.appendChild(svgEl("circle", { cx: 99, cy: 109, r: 6.5, fill: gloveColor, stroke: gloveBorder, "stroke-width": "1.5" }));
-  }
-
-  // 3. 배트 오버레이 (bat)
-  const batLvl = equipment?.bat ?? 0;
-  if (batLvl > 0) {
-    let batColor = "url(#woodBatGrad)";
-    let batTipColor = "#8a5a2a";
-    let gripColor = "#3a2517";
-
-    if (batLvl === 1) {
-      batColor = "url(#silverGrad)";
-      batTipColor = "#94a3b8";
-      gripColor = "#1e293b";
-    } else if (batLvl === 2) {
-      batColor = "#1e293b";
-      batTipColor = "#ef4444";
-      gripColor = "#ef4444";
-    } else if (batLvl === 3) {
-      batColor = "url(#goldBatGrad)";
-      batTipColor = "#fbbf24";
-      gripColor = "#1e1b4b";
-    }
-
-    // 일러스트 배트 가림막 (128,86 -> 168,28)
-    innerG.appendChild(svgEl("line", {
-      x1: 128, y1: 86,
-      x2: 168, y2: 28,
-      stroke: battingLeft ? batColor : batColor, // 방향별 색상 동일
-      "stroke-width": "6",
-      "stroke-linecap": "round",
-    }));
-    innerG.appendChild(svgEl("line", {
-      x1: 128, y1: 86,
-      x2: 168, y2: 28,
-      stroke: "#111",
-      "stroke-width": "6",
-      "stroke-linecap": "round",
-      opacity: 0.15
-    }));
-    innerG.appendChild(svgEl("circle", { cx: 168, cy: 28, r: 5.5, fill: batTipColor, stroke: "#111", "stroke-width": "1.5" }));
-    
-    // 그립
-    innerG.appendChild(svgEl("rect", {
-      x: 120, y: 80, width: 12, height: 6.5,
-      fill: gripColor,
-      stroke: "#111",
-      "stroke-width": "1.2",
-      transform: "rotate(-30 126 83)",
-    }));
-  }
-
-  // 4. 안경 오버레이 (glasses) - 오직 커스텀 얼굴일 때만 얹음 (f5 프리셋 등에는 이미 안경이 그려져 있음)
-  if (isCustomFace) {
-    const face = getFace(faceId);
-    if (face.accessory === "glasses") {
-      // 일러스트 얼굴 위치에 안경 오버레이
-      const eyeY = 55.5;
-      const leftLensX = 86.5;
-      const rightLensX = 93.5;
-      const radius = 6.5 * 0.44; // 약 2.8px
-      
-      innerG.appendChild(svgEl("circle", { cx: leftLensX, cy: eyeY, r: radius, fill: "rgba(255,255,255,0.22)", stroke: "#222", "stroke-width": "1.0" }));
-      innerG.appendChild(svgEl("circle", { cx: rightLensX, cy: eyeY, r: radius, fill: "rgba(255,255,255,0.22)", stroke: "#222", "stroke-width": "1.0" }));
-      
-      innerG.appendChild(svgEl("line", { x1: leftLensX + radius, y1: eyeY, x2: rightLensX - radius, y2: eyeY, stroke: "#222", "stroke-width": "0.8" }));
-      
-      innerG.appendChild(svgEl("line", { x1: leftLensX - 1.2, y1: eyeY - 1.5, x2: leftLensX + 1.2, y2: eyeY + 1.5, stroke: "#fff", "stroke-width": "0.6", opacity: 0.7 }));
-      innerG.appendChild(svgEl("line", { x1: rightLensX - 1.2, y1: eyeY - 1.5, x2: rightLensX + 1.2, y2: eyeY + 1.5, stroke: "#fff", "stroke-width": "0.6", opacity: 0.7 }));
-    }
-  }
-
-  // 5. 글러브 배지 오버레이
-  if (hand === "mixed" || hand === "lefty_rb") {
-    const throwHand = hand === "mixed" ? "R" : "L";
-    const badgeX = hand === "mixed" ? 126 : 54;
-    const badge = group([], { transform: `translate(${badgeX} 160)` });
-
-    let badgeBg = "#3a2517";
-    let badgeBorder = "#111";
-    if (gloveLvl === 1) {
-      badgeBg = "#4ea4ff";
-      badgeBorder = "#1d4ed8";
-    } else if (gloveLvl === 2) {
-      badgeBg = "#1f2937";
-      badgeBorder = "#4b5563";
-    } else if (gloveLvl === 3) {
-      badgeBg = "url(#goldBatGrad)";
-      badgeBorder = "#b45309";
-    }
-
-    badge.appendChild(svgEl("circle", { cx: 0, cy: 0, r: 13.5, fill: badgeBg, stroke: badgeBorder, "stroke-width": "1.8" }));
-    badge.appendChild(svgEl("circle", { cx: -4, cy: -4, r: 4, fill: "rgba(255,255,255,0.18)" }));
-    
-    const txt = svgEl("text", {
-      x: 0, y: 4, "text-anchor": "middle",
-      fill: "#e8edf3", "font-size": "10", "font-weight": "900",
-      stroke: "#111", "stroke-width": "1.5", "paint-order": "stroke fill"
-    });
-    txt.textContent = throwHand;
-    badge.appendChild(txt);
-    innerG.appendChild(badge);
-  }
-
-  g.appendChild(innerG);
-  return g;
-}
-
-// 폴백 드로잉: 일러스트 에셋 로드 실패 시에만 그리는 기존 전체 카툰 SVG 뼈대
-function drawCharacterBody(faceId, hand, talent = "all_round", equipment = { bat: 0, glove: 0, cleats: 0 }) {
-  const battingLeft = hand === "left" || hand === "mixed";
-  const g = group([], { transform: `translate(90 30)` });
-
-  let shW = 28;     // shoulder half-width
-  let waistW = 26;  // waist half-width
-  let legW = 22;    // outer leg half-width
-  
-  if (talent === "power") {
-    shW = 34;
-    waistW = 31;
-    legW = 27;
-  } else if (talent === "speedster" || talent === "finesse" || talent === "breakerz") {
-    shW = 23;
-    waistW = 21;
-    legW = 18;
-  }
-
-  // 1. 머리
-  const head = group([], { transform: "translate(-22 0) scale(0.44)" });
-  head.appendChild(createFaceGroup(faceId));
-  g.appendChild(head);
-
-  // 2. 목
-  g.appendChild(svgEl("rect", {
-    x: -4.5, y: 44, width: 9, height: 9, fill: "#e6b889", stroke: "#111", "stroke-width": "1.5", rx: 2
-  }));
-  g.appendChild(svgEl("path", {
-    d: "M -4.5 44 L 4.5 44 L 4.5 49 L -4.5 44 Z", fill: "rgba(0,0,0,0.12)"
-  }));
-
-  // 3. 유니폼 몸통
-  const bodyColor = "#e8edf3";
-  const bodyAccent = "#4ea4ff";
-  
-  g.appendChild(svgEl("path", {
-    d: `M -${shW} 52 Q -${shW} 48 -${waistW} 48 L ${waistW} 48 Q ${shW} 48 ${shW} 52 L ${waistW} 110 L -${waistW} 110 Z`,
-    fill: bodyColor,
-    stroke: "#111",
-    "stroke-width": "1.8",
-  }));
-  
-  g.appendChild(svgEl("path", {
-    d: `M 0 48 L ${waistW} 48 Q ${shW} 48 ${shW} 52 L ${waistW} 110 L 0 110 Z`,
-    fill: "rgba(0,0,0,0.06)",
-  }));
-
-  const num = svgEl("text", {
-    x: 0, y: 92,
-    "text-anchor": "middle",
-    fill: bodyAccent,
-    stroke: "#13284f",
-    "stroke-width": "2",
-    "paint-order": "stroke fill",
-    "font-size": "28",
-    "font-weight": "900",
-    "font-family": "Impact, system-ui, sans-serif",
-  });
-  num.textContent = "1";
-  g.appendChild(num);
-
-  // 벨트
-  g.appendChild(svgEl("rect", {
-    x: -waistW, y: 108, width: waistW * 2, height: 6, fill: "#1a1a1a", stroke: "#111", "stroke-width": "1.2"
-  }));
-  g.appendChild(svgEl("rect", {
-    x: -4, y: 107, width: 8, height: 8, fill: "#ffb84e", stroke: "#111", "stroke-width": "1"
-  }));
-
-  // 4. 바지
-  g.appendChild(svgEl("path", {
-    d: `M -${waistW-2} 114 L -${legW} 168 L -6 168 L -4 130 L 4 130 L 6 168 L ${legW} 168 L ${waistW-2} 114 Z`,
-    fill: "#bfc5d0",
-    stroke: "#111",
-    "stroke-width": "1.8",
-  }));
-  g.appendChild(svgEl("path", {
-    d: "M -4 130 L 4 130 L 6 168 L 0 168 Z",
-    fill: "rgba(0,0,0,0.08)",
-  }));
-
-  // 5. 신발
-  const cleatsLvl = equipment?.cleats ?? 0;
-  let footColor = "#1a1a1a";
-  let footDetail = "#333";
-  
-  if (cleatsLvl === 1) {
-    footColor = "#3b82f6";
-    footDetail = "#1d4ed8";
-  } else if (cleatsLvl === 2) {
-    footColor = "#ef4444";
-    footDetail = "#b91c1c";
-  } else if (cleatsLvl === 3) {
-    footColor = "url(#goldBatGrad)";
-    footDetail = "#fbbf24";
-  }
-
-  const footX = Math.round(legW * 0.65);
-  g.appendChild(svgEl("ellipse", { cx: -footX, cy: 174, rx: 11.5, ry: 5.5, fill: footColor, stroke: "#111", "stroke-width": "1.8" }));
-  g.appendChild(svgEl("line", { x1: -footX - 8, y1: 176, x2: -footX + 8, y2: 176, stroke: footDetail, "stroke-width": "2.2" }));
-  g.appendChild(svgEl("ellipse", { cx: footX, cy: 174, rx: 11.5, ry: 5.5, fill: footColor, stroke: "#111", "stroke-width": "1.8" }));
-  g.appendChild(svgEl("line", { x1: footX - 8, y1: 176, x2: footX + 8, y2: 176, stroke: footDetail, "stroke-width": "2.2" }));
-
-  // 6. 팔 + 배트
-  const dx = shW - 28;
-  const armsTransform = battingLeft 
-    ? `scale(-1 1) translate(${dx} 0)` 
-    : `translate(${dx} 0)`;
-  const armsG = group([], { transform: armsTransform });
-
-  armsG.appendChild(svgEl("path", {
-    d: "M 22 56 L 38 50 L 44 70 L 30 76 Z",
-    fill: "#e6b889",
-    stroke: "#111",
-    "stroke-width": "1.8",
-  }));
-  armsG.appendChild(svgEl("path", {
-    d: "M 30 76 L 44 70 L 41 60 Z",
-    fill: "rgba(0,0,0,0.12)"
-  }));
-
-  armsG.appendChild(svgEl("path", {
-    d: "M -18 56 L -10 70 L 4 82 L 14 76 L 12 64 L 0 58 Z",
-    fill: "#e6b889",
-    stroke: "#111",
-    "stroke-width": "1.8",
-  }));
-  armsG.appendChild(svgEl("path", {
-    d: "M 4 82 L 14 76 L 12 64 L 6 62 Z",
-    fill: "rgba(0,0,0,0.12)"
-  }));
-
-  // 장갑
-  const gloveLvl = equipment?.glove ?? 0;
-  let gloveColor = "#e6b889"; 
-  let gloveBorder = "#111";
-  
-  if (gloveLvl === 1) {
-    gloveColor = "#4ea4ff";
-    gloveBorder = "#1d4ed8";
-  } else if (gloveLvl === 2) {
-    gloveColor = "#1e293b";
-    gloveBorder = "#0f172a";
-  } else if (gloveLvl === 3) {
-    gloveColor = "url(#goldBatGrad)";
-    gloveBorder = "#b45309";
-  }
-
-  armsG.appendChild(svgEl("circle", { cx: 37, cy: 73, r: 6, fill: gloveColor, stroke: gloveBorder, "stroke-width": "1.5" }));
-  armsG.appendChild(svgEl("circle", { cx: 9, cy: 79, r: 6, fill: gloveColor, stroke: gloveBorder, "stroke-width": "1.5" }));
-
-  // 배트
-  const batLvl = equipment?.bat ?? 0;
-  let batColor = "url(#woodBatGrad)";
-  let batTipColor = "#8a5a2a";
-  let gripColor = "#3a2517";
-
-  if (batLvl === 1) {
-    batColor = "url(#silverGrad)";
-    batTipColor = "#94a3b8";
-    gripColor = "#1e293b";
-  } else if (batLvl === 2) {
-    batColor = "#1e293b";
-    batTipColor = "#ef4444";
-    gripColor = "#ef4444";
-  } else if (batLvl === 3) {
-    batColor = "url(#goldBatGrad)";
-    batTipColor = "#fbbf24";
-    gripColor = "#1e1b4b";
-  }
-
-  armsG.appendChild(svgEl("line", {
-    x1: 38, y1: 56,
-    x2: 78, y2: -2,
-    stroke: batColor,
-    "stroke-width": "5.5",
-    "stroke-linecap": "round",
-  }));
-  armsG.appendChild(svgEl("line", {
-    x1: 38, y1: 56,
-    x2: 78, y2: -2,
-    stroke: "#111",
-    "stroke-width": "5.5",
-    "stroke-linecap": "round",
-    "paint-order": "stroke fill",
-    opacity: 0.15
-  }));
-
-  armsG.appendChild(svgEl("circle", { cx: 78, cy: -2, r: 5.5, fill: batTipColor, stroke: "#111", "stroke-width": "1.5" }));
-  
-  armsG.appendChild(svgEl("rect", {
-    x: 30, y: 50, width: 12, height: 6.5,
-    fill: gripColor,
-    stroke: "#111",
-    "stroke-width": "1.2",
-    transform: "rotate(-30 36 53)",
-  }));
-
-  g.appendChild(armsG);
-
-  // 글러브 배지
-  if (hand === "mixed" || hand === "lefty_rb") {
-    const throwHand = hand === "mixed" ? "R" : "L";
-    const badgeX = hand === "mixed" ? 36 : -36;
-    const badge = group([], { transform: `translate(${badgeX} 130)` });
-
-    let badgeBg = "#3a2517";
-    let badgeBorder = "#111";
-    if (gloveLvl === 1) {
-      badgeBg = "#4ea4ff";
-      badgeBorder = "#1d4ed8";
-    } else if (gloveLvl === 2) {
-      badgeBg = "#1f2937";
-      badgeBorder = "#4b5563";
-    } else if (gloveLvl === 3) {
-      badgeBg = "url(#goldBatGrad)";
-      badgeBorder = "#b45309";
-    }
-
-    badge.appendChild(svgEl("circle", { cx: 0, cy: 0, r: 13.5, fill: badgeBg, stroke: badgeBorder, "stroke-width": "1.8" }));
-    badge.appendChild(svgEl("circle", { cx: -4, cy: -4, r: 4, fill: "rgba(255,255,255,0.18)" }));
-    
-    const txt = svgEl("text", {
-      x: 0, y: 4, "text-anchor": "middle",
-      fill: "#e8edf3", "font-size": "10", "font-weight": "900",
-      stroke: "#111", "stroke-width": "1.5", "paint-order": "stroke fill"
-    });
-    txt.textContent = throwHand;
-    badge.appendChild(txt);
-    g.appendChild(badge);
-  }
-
-  return g;
+function appendHandLabel(parent, hand) {
+  const labelWrap = document.createElement("div");
+  labelWrap.style.cssText = "position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; display:flex; justify-content:center;";
+  const labelSpan = document.createElement("span");
+  labelSpan.style.cssText = "margin-top:22px; color:#8b949e; font-size:13px; font-weight:bold; font-family:monospace;";
+  labelSpan.textContent = handLabel(hand);
+  labelWrap.appendChild(labelSpan);
+  parent.appendChild(labelWrap);
 }
