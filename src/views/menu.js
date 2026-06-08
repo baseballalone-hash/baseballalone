@@ -173,8 +173,8 @@ function buildStartMenu(root, route) {
   // 이어하기 + 새 게임 (없으면 게임 시작)
   actions.appendChild(renderStartButtons(route));
 
-  // 클라우드 저장 + 불러오기 (로그인 시)
-  if (isSignedIn()) actions.appendChild(renderCloudPanel(route));
+  // 클라우드 저장 + 불러오기 (구글 로그인 시만 노출)
+  if (isSignedIn() && !isAnonymousUser()) actions.appendChild(renderCloudPanel(route));
 
   // 명예의 전당 박물관 진입
   actions.appendChild(renderHallOfFameMuseumPanel(route));
@@ -546,8 +546,8 @@ function renderLoadModal(route) {
 
   dialog.appendChild(compareBox);
 
-  // 비동기 조회 — 1 read.
-  if (isSignedIn()) {
+  // 비동기 조회 — Google 로그인(비익명)일 때만 진행
+  if (isSignedIn() && !isAnonymousUser()) {
     (cloudMetaCache !== null
       ? Promise.resolve(cloudMetaCache)
       : getCloudSaveMeta().then(m => { cloudMetaCache = m; return m; }))
@@ -584,9 +584,9 @@ function renderLoadModal(route) {
   loadBtn.style.marginBottom = "8px";
   dialog.appendChild(loadBtn);
 
-  // ☁️ 클라우드에서 불러오기 — Firebase 로그인 상태일 때만 노출.
+  // ☁️ 클라우드에서 불러오기 — Google 로그인 상태일 때만 노출.
   // 로컬 세이브를 덮어쓸 수 있으니 확인 모달.
-  if (isSignedIn()) {
+  if (isSignedIn() && !isAnonymousUser()) {
     const cloudBtn = button(t("cloud.loadBtn"), "", async () => {
       // 로컬이 클라우드보다 명백히 더 새것이면 (60초 이상) confirm.
       const meta = cloudMetaCache ?? await getCloudSaveMeta();
