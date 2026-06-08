@@ -304,7 +304,7 @@ function playPitchSequenceAuto({ svg, fxHost, ball, labelHost, swingRef, event, 
 function showPreparationOverlay(container, mode) {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
-    overlay.style.cssText = "position:absolute; inset:0; z-index:10; background:rgba(10, 15, 26, 0.88); backdrop-filter:blur(2px); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; color:#ffffff; font-family:sans-serif; text-align:center; padding:16px; box-sizing:border-box;";
+    overlay.style.cssText = "position:absolute; inset:0; z-index:10; background:rgba(10, 15, 26, 0.88); backdrop-filter:blur(2px); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; color:#ffffff; font-family:sans-serif; text-align:center; padding:16px; box-sizing:border-box; pointer-events:auto;";
 
     const title = document.createElement("div");
     title.style.cssText = "font-size:15px; font-weight:700; color:var(--accent); letter-spacing:0.5px; margin-bottom:2px;";
@@ -319,15 +319,19 @@ function showPreparationOverlay(container, mode) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = t("weekly.confirmBtn");
-    btn.style.cssText = "padding:6px 20px; font-size:12px; font-weight:700; border-radius:4px; cursor:pointer; background:var(--accent-2); color:#000000; border:none;";
+    btn.style.cssText = "padding:6px 20px; font-size:12px; font-weight:700; border-radius:4px; cursor:pointer; background:var(--accent-2); color:#000000; border:none; pointer-events:auto;";
     btn.classList.add("primary");
     
-    btn.addEventListener("click", (e) => {
+    const handleConfirm = (e) => {
+      e.preventDefault();
       e.stopPropagation();
       sfx("click");
       overlay.remove();
       resolve();
-    });
+    };
+
+    btn.addEventListener("click", handleConfirm);
+    btn.addEventListener("pointerdown", handleConfirm);
 
     overlay.appendChild(title);
     overlay.appendChild(desc);
