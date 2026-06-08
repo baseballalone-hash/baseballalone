@@ -330,6 +330,7 @@ function playPitchSequenceAuto({ svg, fxHost, ball, labelHost, swingRef, event, 
 function showPreparationOverlay(container, mode) {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
+    overlay.className = "modal-backdrop preparation-overlay";
     overlay.style.cssText = "position:absolute; inset:0; z-index:10; background:rgba(10, 15, 26, 0.88); backdrop-filter:blur(2px); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; color:#ffffff; font-family:sans-serif; text-align:center; padding:16px; box-sizing:border-box; pointer-events:auto;";
 
     const title = document.createElement("div");
@@ -357,7 +358,6 @@ function showPreparationOverlay(container, mode) {
     };
 
     btn.addEventListener("click", handleConfirm);
-    btn.addEventListener("pointerdown", handleConfirm);
 
     overlay.appendChild(title);
     overlay.appendChild(desc);
