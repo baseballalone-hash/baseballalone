@@ -27,12 +27,11 @@ import { sfx } from "../assets/audio.js";
 import { createImage } from "../assets/images.js";
 import { createCharacterSVG } from "../render/character.js";
 
-// 이벤트 컷 삽입 헬퍼 — 에셋 있으면 일러스트, 없으면(파일 X) 아무것도 안 그림.
 function eventCut(key) {
-  // 세로로 긴 이벤트 이미지가 모달을 넘기지 않도록 높이 상한 + 가운데 크롭(object-fit cover).
+  // 모달 크기에 맞춰 유연하게 100% 폭을 사용하고, 이미지 전체가 잘림 없이 보일 수 있도록 contain 적용.
   return createImage(key, {
-    style: "max-width:300px; max-height:180px; margin:0 auto 10px; border-radius:8px; overflow:hidden;",
-    imgStyle: "max-height:180px; object-fit:cover;",
+    style: "max-width:100%; width:320px; max-height:180px; margin:0 auto 10px; border-radius:8px; overflow:hidden; display:flex; justify-content:center; align-items:center; background:var(--panel-2);",
+    imgStyle: "max-width:100%; max-height:180px; object-fit:contain;",
   });
 }
 import { randomName } from "../data/names.js";
