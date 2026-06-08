@@ -11,14 +11,14 @@ import { renderHomerunDerby } from "./views/homerunDerby.js";
 import { renderHallOfFameMuseum } from "./views/hallOfFameMuseum.js";
 import { advanceOneDay } from "./systems/tick.js";
 import { loadRegressionMeta } from "./systems/regression.js";
-import { loadSettings } from "./systems/settings.js";
+import { loadSettings, getSetting, setSetting } from "./systems/settings.js";
 import { initFirebase } from "./cloud/firebase.js";
 import { initAuth } from "./cloud/auth.js";
 import {
   t, loadLocaleFromStorage, getLocale,
 } from "./i18n/index.js";
 import { openSettingsModal } from "./views/settingsModal.js";
-import { initAudioUnlock, playBgm, stopBgm, sfx } from "./assets/audio.js";
+import { initAudioUnlock, playBgm, stopBgm, sfx, applyAudioSettings } from "./assets/audio.js";
 import { preloadImages } from "./assets/images.js";
 import { showInterstitialAd } from "./systems/ads.js";
 
@@ -47,6 +47,14 @@ function updateChrome() {
   if (toggle) {
     toggle.textContent = "⚙";
     toggle.setAttribute("aria-label", t("settingsModal.title"));
+  }
+  const muteToggle = document.getElementById("mute-toggle");
+  if (muteToggle) {
+    const isMutedVal = !!getSetting("muted");
+    const volVal = getSetting("sfxVolume") ?? 0.5;
+    const isReallyMuted = isMutedVal || volVal <= 0;
+    muteToggle.textContent = isReallyMuted ? "🔇" : "🔊";
+    muteToggle.setAttribute("aria-label", isReallyMuted ? t("settingsModal.soundMuted") : t("settingsModal.soundOn"));
   }
   const pauseToggle = document.getElementById("pause-toggle");
   if (pauseToggle) {
@@ -180,6 +188,18 @@ function wireSettingsButton() {
   btn.addEventListener("click", () => openSettingsModal(route));
 }
 
+function wireMuteButton() {
+  const btn = document.getElementById("mute-toggle");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const nextMuted = !getSetting("muted");
+    setSetting("muted", nextMuted);
+    applyAudioSettings();
+    updateChrome();
+    if (!nextMuted) sfx("click");
+  });
+}
+
 function wirePauseButton() {
   const btn = document.getElementById("pause-toggle");
   if (!btn) return;
@@ -293,6 +313,7 @@ function init() {
     initAuth(() => { if (state.view === "start") route("start"); });
   }
   updateChrome();
+  wireMuteButton();
   wireSettingsButton();
   wirePauseButton();
   setupScrollTopButton();

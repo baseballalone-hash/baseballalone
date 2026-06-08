@@ -144,6 +144,17 @@ export function openSettingsModal(route) {
     setSetting("muted", !getSetting("muted"));
     syncMute();
     applyAudioSettings();
+    
+    // 탑바의 mute-toggle 버튼 텍스트/라벨 동기화
+    const muteToggle = document.getElementById("mute-toggle");
+    if (muteToggle) {
+      const isMutedVal = !!getSetting("muted");
+      const volVal = getSetting("sfxVolume") ?? 0.5;
+      const isReallyMuted = isMutedVal || volVal <= 0;
+      muteToggle.textContent = isReallyMuted ? "🔇" : "🔊";
+      muteToggle.setAttribute("aria-label", isReallyMuted ? t("settingsModal.soundMuted") : t("settingsModal.soundOn"));
+    }
+
     if (!getSetting("muted")) sfx("click");
   });
   audioRow.appendChild(muteBtn);
@@ -164,6 +175,16 @@ export function openSettingsModal(route) {
     rng.addEventListener("input", () => {
       setSetting(key, Number(rng.value) / 100);
       onChange?.();
+
+      // 볼륨 조절 시에도 탑바 mute-toggle 상태 업데이트
+      const muteToggle = document.getElementById("mute-toggle");
+      if (muteToggle) {
+        const isMutedVal = !!getSetting("muted");
+        const volVal = getSetting("sfxVolume") ?? 0.5;
+        const isReallyMuted = isMutedVal || volVal <= 0;
+        muteToggle.textContent = isReallyMuted ? "🔇" : "🔊";
+        muteToggle.setAttribute("aria-label", isReallyMuted ? t("settingsModal.soundMuted") : t("settingsModal.soundOn"));
+      }
     });
     wrap.appendChild(lab);
     wrap.appendChild(rng);
@@ -174,27 +195,40 @@ export function openSettingsModal(route) {
 
   dialog.appendChild(audioSection);
 
-  // 2) 언어 토글
+  // 2) 언어 토글 (작게 변경)
   const langSection = document.createElement("section");
+  langSection.style.marginBottom = "16px";
+  const langRow = document.createElement("div");
+  langRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:8px;";
+
   const langTitle = document.createElement("div");
-  langTitle.className = "muted small";
-  langTitle.style.cssText = "font-size:11px; margin-bottom:8px; font-weight:700;";
+  langTitle.style.cssText = "font-weight:700; font-size:13px;";
   langTitle.textContent = t("settingsModal.language");
-  langSection.appendChild(langTitle);
+  langRow.appendChild(langTitle);
 
   const langBtn = document.createElement("button");
   langBtn.type = "button";
   langBtn.textContent = localeToggleLabel();
-  langBtn.style.cssText = "width:100%; padding:12px; font-size:14px;";
+  // 언어 변경 버튼을 훨씬 작고 깔끔하게 스타일링
+  langBtn.style.cssText = "padding:5px 10px; font-size:11px; font-weight:700; flex-shrink:0; font-family:inherit;";
   langBtn.addEventListener("click", () => {
     toggleLocale();
     // 현재 뷰 재렌더 + chrome 갱신. 모달은 닫음.
     closeSettingsModal();
     route(state.view ?? "menu");
   });
-  langSection.appendChild(langBtn);
-
+  langRow.appendChild(langBtn);
+  langSection.appendChild(langRow);
   dialog.appendChild(langSection);
+
+  // 3) 설정창 하단 확인(닫기) 버튼 추가
+  const confirmBtn = document.createElement("button");
+  confirmBtn.type = "button";
+  confirmBtn.className = "primary";
+  confirmBtn.textContent = t("weekly.confirmBtn") || "Confirm";
+  confirmBtn.style.cssText = "width:100%; padding:10px; font-size:13px; font-weight:700; margin-top:20px; border-radius:6px; font-family:inherit;";
+  confirmBtn.addEventListener("click", closeSettingsModal);
+  dialog.appendChild(confirmBtn);
 
   backdrop.appendChild(dialog);
 
