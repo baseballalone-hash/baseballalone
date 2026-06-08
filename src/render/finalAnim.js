@@ -495,153 +495,72 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
       });
 
     } else {
-      // ────────────── 투수 모드 (직접 타이밍 투구 조작) ──────────────
+      // ────────────── 투수 모드 (선택 완료 시 자동 연산) ──────────────
       return showPitchingSelector(container, state.player).then((selectorResult) => {
-        // Fastball(four_seam)은 링이 빠르고 변화구는 조금 느림 (veloRatio에 연계)
         const pitchObj = selectorResult.pitch;
-        const veloRatio = pitchObj.veloRatio ?? 1.0;
-        const duration = 800 + (1.0 - veloRatio) * 400; // 800ms ~ 1200ms
         
-        // 타이밍 링 생성 및 오버레이 렌더
-        const ring = svgEl("circle", {
-          cx: 160, cy: ZONE.y + ZONE.h / 2, r: 60, fill: "none",
-          stroke: "var(--accent-2)", "stroke-width": 3, opacity: 0.8,
-          style: `transition: r ${duration}ms linear;`
-        });
-        svg.appendChild(ring);
-        
-        showLabel(labelHost, "RELEASE!", "var(--accent)");
+        // 심리전 보정치 적용
+        const multiplier = selectorResult.multiplier ?? 1.0;
+        const controlStat = Math.round((state.player?.control ?? 50) * multiplier);
 
-        const pitchStartTime = Date.now();
-        let releaseTriggered = false;
-        let clickTime = 0;
+        // 능력치 기반 확률 계산 (PERFECT, GOOD, EARLY_LATE, MEATBALL)
+        const rand = Math.random();
 
-        // 링 크기 축소 애니메이션 프레임
-        const ringFrame = () => {
-          if (!isInteractiveActive || releaseTriggered) return;
-          const elapsed = Date.now() - pitchStartTime;
-          const p = Math.min(1.0, elapsed / duration);
-          const r = 60 - (60 - 15) * p;
-          ring.setAttribute("r", r.toFixed(1));
-          if (p < 1.0) {
-            requestAnimationFrame(ringFrame);
+        const pPerfect = Math.max(0.05, Math.min(0.50, 0.15 + (controlStat - 50) * 0.005));
+        const pGood = Math.max(0.20, Math.min(0.70, 0.45 + (controlStat - 50) * 0.004));
+        const pEarlyLate = Math.max(0.05, Math.min(0.50, 0.25 - (controlStat - 50) * 0.003));
+
+        const isCorner = [0, 2, 6, 8].includes(selectorResult.zone);
+        const isCenter = selectorResult.zone === 4;
+
+        let finalResult = "1B";
+        let feedbackText = "MEATBALL!";
+        let feedbackColor = "var(--bad)";
+        const pitchLabel = t("pitch." + pitchObj.key) || pitchObj.name;
+
+        if (rand < pPerfect) {
+          if (isCorner) {
+            finalResult = Math.random() < 0.85 ? "K" : "OUT";
+          } else if (isCenter) {
+            finalResult = Math.random() < 0.50 ? "K" : (Math.random() < 0.80 ? "OUT" : "1B");
+          } else {
+            finalResult = Math.random() < 0.70 ? "K" : "OUT";
           }
-        };
-        requestAnimationFrame(ringFrame);
+          feedbackText = `PERFECT ${pitchLabel.toUpperCase()}!`;
+          feedbackColor = "var(--accent-2)";
+          sfx("good");
+        } else if (rand < pPerfect + pGood) {
+          if (isCorner) {
+            finalResult = Math.random() < 0.75 ? "OUT" : "1B";
+          } else {
+            finalResult = Math.random() < 0.60 ? "OUT" : "1B";
+          }
+          feedbackText = `GOOD ${pitchLabel.toUpperCase()}!`;
+          feedbackColor = "var(--accent)";
+        } else if (rand < pPerfect + pGood + pEarlyLate) {
+          const outChance = isCorner ? 0.30 : 0.45;
+          finalResult = Math.random() < outChance ? "OUT" : (Math.random() < 0.75 ? "1B" : "2B");
+          feedbackText = Math.random() < 0.5 ? "EARLY RELEASE!" : "LATE RELEASE!";
+          feedbackColor = "var(--warn)";
+        } else {
+          const hrChance = isCorner ? 0.45 : 0.30;
+          finalResult = Math.random() < hrChance ? "HR" : "1B";
+          feedbackText = "MEATBALL!";
+          feedbackColor = "var(--bad)";
+        }
+
+        updateEventResult(event, finalResult);
+        hideLabel(labelHost);
+        showLabel(labelHost, feedbackText, feedbackColor);
+
+        // 투구 시작
+        sfx("pitch");
+        if (swingRef.fg) throwPush(swingRef);
+
+        const spec = PLAYBOOK[finalResult] ?? PLAYBOOK.OUT;
+        const { contact, final } = pickEndPoint(spec);
 
         return new Promise(resolve => {
-          const onRelease = () => {
-            if (releaseTriggered) return;
-            releaseTriggered = true;
-            clickTime = Date.now();
-            container.removeEventListener("click", onRelease);
-            ring.remove();
-
-            const elapsed = clickTime - pitchStartTime;
-            const p = elapsed / duration;
-
-            // 심리전 보정치 적용
-            const multiplier = selectorResult.multiplier ?? 1.0;
-            const controlStat = Math.round((state.player?.control ?? 50) * multiplier);
-            
-            const perfectWin = 0.05 + (controlStat - 50) * 0.0003;
-            const groupWin = 0.14 + (controlStat - 50) * 0.0006;
-
-            const isCorner = [0, 2, 6, 8].includes(selectorResult.zone);
-            const isCenter = selectorResult.zone === 4;
-
-            let finalResult = "1B";
-            let feedbackText = "MEATBALL!";
-            let feedbackColor = "var(--bad)";
-
-            const pitchLabel = t("pitch." + pitchObj.key) || pitchObj.name;
-
-            if (Math.abs(p - 0.82) <= perfectWin / 2) {
-              if (isCorner) {
-                finalResult = Math.random() < 0.85 ? "K" : "OUT";
-              } else if (isCenter) {
-                finalResult = Math.random() < 0.50 ? "K" : (Math.random() < 0.80 ? "OUT" : "1B");
-              } else {
-                finalResult = Math.random() < 0.70 ? "K" : "OUT";
-              }
-              feedbackText = `PERFECT ${pitchLabel.toUpperCase()}!`;
-              feedbackColor = "var(--accent-2)";
-              sfx("good");
-            } else if (Math.abs(p - 0.82) <= groupWin / 2) {
-              if (isCorner) {
-                finalResult = Math.random() < 0.75 ? "OUT" : "1B";
-              } else {
-                finalResult = Math.random() < 0.60 ? "OUT" : "1B";
-              }
-              feedbackText = `GOOD ${pitchLabel.toUpperCase()}!`;
-              feedbackColor = "var(--accent)";
-            } else if (p >= 0.58 && p <= 1.04) {
-              const outChance = isCorner ? 0.30 : 0.45;
-              finalResult = Math.random() < outChance ? "OUT" : (Math.random() < 0.75 ? "1B" : "2B");
-              feedbackText = p < 0.82 ? "EARLY RELEASE!" : "LATE RELEASE!";
-              feedbackColor = "var(--warn)";
-            } else {
-              const hrChance = isCorner ? 0.45 : 0.30;
-              finalResult = Math.random() < hrChance ? "HR" : "1B";
-              feedbackText = "MEATBALL!";
-              feedbackColor = "var(--bad)";
-            }
-
-            updateEventResult(event, finalResult);
-            hideLabel(labelHost);
-            showLabel(labelHost, feedbackText, feedbackColor);
-
-            // 투구 시작
-            sfx("pitch");
-            if (swingRef.fg) throwPush(swingRef);
-
-            const spec = PLAYBOOK[finalResult] ?? PLAYBOOK.OUT;
-            const { contact, final } = pickEndPoint(spec);
-
-            animateBall(ball, start, { x: contact.x, y: contact.y, r: 5 }, 380)
-              .then(() => {
-                if (spec.swing && (swingRef.fg || swingRef.bat)) {
-                  swingBat(swingRef);
-                }
-                playResultSfx(finalResult);
-                return animateBall(ball, { x: contact.x, y: contact.y, r: 5 }, final, 700);
-              })
-              .then(() => {
-                if (spec.firework) {
-                  spawnFireworks(fxHost ?? svg);
-                  return waitMs(900);
-                }
-                return waitMs(220);
-              })
-              .then(() => {
-                ball.style.opacity = "0";
-                hideLabel(labelHost);
-                isInteractiveActive = false;
-                resolve();
-              });
-          };
-
-          container.addEventListener("click", onRelease);
-
-
-        // 미조작 시 자동 실투
-        setTimeout(() => {
-          if (releaseTriggered) return;
-          releaseTriggered = true;
-          container.removeEventListener("click", onRelease);
-          ring.remove();
-
-          const finalResult = Math.random() < 0.4 ? "HR" : "1B";
-          updateEventResult(event, finalResult);
-          hideLabel(labelHost);
-          showLabel(labelHost, "MEATBALL!", "var(--bad)");
-
-          sfx("pitch");
-          if (swingRef.fg) throwPush(swingRef);
-
-          const spec = PLAYBOOK[finalResult] ?? PLAYBOOK.OUT;
-          const { contact, final } = pickEndPoint(spec);
-
           animateBall(ball, start, { x: contact.x, y: contact.y, r: 5 }, 380)
             .then(() => {
               if (spec.swing && (swingRef.fg || swingRef.bat)) {
@@ -663,9 +582,9 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
               isInteractiveActive = false;
               resolve();
             });
-        }, duration * 1.1);
+        });
       });
-    });
+    }
   }
 });
 }
