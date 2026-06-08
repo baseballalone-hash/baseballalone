@@ -1183,4 +1183,15 @@ export const ko = {
       vshape: "V라인",
     },
   },
+
+  pitch: {
+    four_seam: "포심",
+    two_seam: "투심",
+    sinker: "싱커",
+    slider: "슬라이더",
+    curve: "커브",
+    changeup: "체인지업",
+    knuckle: "너클볼",
+    batterGuessed: "타자 예상 구종:",
+  },
 };

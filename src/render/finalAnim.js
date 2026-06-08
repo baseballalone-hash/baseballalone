@@ -16,6 +16,32 @@ import { createImage } from "../assets/images.js";
 import { sfx } from "../assets/audio.js";
 
 const W = 320, H = 220;
+
+export const PITCH_DATABASE = {
+  four_seam: { key: "four_seam", name: "Four-Seam", veloRatio: 1.0, breakRatio: 0.0 },
+  two_seam:  { key: "two_seam",  name: "Two-Seam",  veloRatio: 0.8, breakRatio: 0.2, reqVelo: 60, reqBreak: 40 },
+  sinker:    { key: "sinker",    name: "Sinker",    veloRatio: 0.7, breakRatio: 0.3, reqVelo: 70, reqBreak: 45 },
+  slider:    { key: "slider",    name: "Slider",    veloRatio: 0.6, breakRatio: 0.4, reqVelo: 55, reqBreak: 50 },
+  curve:     { key: "curve",     name: "Curve",     veloRatio: 0.3, breakRatio: 0.7, reqVelo: 45, reqBreak: 70 },
+  changeup:  { key: "changeup",  name: "Changeup",  veloRatio: 0.4, breakRatio: 0.6, reqVelo: 50, reqBreak: 65 },
+  knuckle:   { key: "knuckle",   name: "Knuckle",   veloRatio: 0.0, breakRatio: 1.0, reqVelo: 40, reqBreak: 85 }
+};
+
+export function getLearnedPitches(player) {
+  const learned = [PITCH_DATABASE.four_seam];
+  if (!player) return learned;
+  
+  const velo = player.velocity ?? 50;
+  const brk = player.breaking ?? 50;
+  
+  for (const [key, pitch] of Object.entries(PITCH_DATABASE)) {
+    if (key === "four_seam") continue;
+    if (velo >= pitch.reqVelo && brk >= pitch.reqBreak) {
+      learned.push(pitch);
+    }
+  }
+  return learned;
+}
 const ZONE = { x: 130, y: 95, w: 60, h: 65 };
 
 // 결과별 시각화 스펙
@@ -471,9 +497,10 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
     } else {
       // ────────────── 투수 모드 (직접 타이밍 투구 조작) ──────────────
       return showPitchingSelector(container, state.player).then((selectorResult) => {
-        // Fastball은 링이 빠르고 변화구는 조금 느림
-        const isFastball = selectorResult.pitch === "Fastball";
-        const duration = isFastball ? 800 : 1100;
+        // Fastball(four_seam)은 링이 빠르고 변화구는 조금 느림 (veloRatio에 연계)
+        const pitchObj = selectorResult.pitch;
+        const veloRatio = pitchObj.veloRatio ?? 1.0;
+        const duration = 800 + (1.0 - veloRatio) * 400; // 800ms ~ 1200ms
         
         // 타이밍 링 생성 및 오버레이 렌더
         const ring = svgEl("circle", {
@@ -513,7 +540,10 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
             const elapsed = clickTime - pitchStartTime;
             const p = elapsed / duration;
 
-            const controlStat = state.player?.control ?? 50;
+            // 심리전 보정치 적용
+            const multiplier = selectorResult.multiplier ?? 1.0;
+            const controlStat = Math.round((state.player?.control ?? 50) * multiplier);
+            
             const perfectWin = 0.05 + (controlStat - 50) * 0.0003;
             const groupWin = 0.14 + (controlStat - 50) * 0.0006;
 
@@ -524,6 +554,8 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
             let feedbackText = "MEATBALL!";
             let feedbackColor = "var(--bad)";
 
+            const pitchLabel = t("pitch." + pitchObj.key) || pitchObj.name;
+
             if (Math.abs(p - 0.82) <= perfectWin / 2) {
               if (isCorner) {
                 finalResult = Math.random() < 0.85 ? "K" : "OUT";
@@ -532,7 +564,7 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
               } else {
                 finalResult = Math.random() < 0.70 ? "K" : "OUT";
               }
-              feedbackText = `PERFECT ${selectorResult.pitch.toUpperCase()}!`;
+              feedbackText = `PERFECT ${pitchLabel.toUpperCase()}!`;
               feedbackColor = "var(--accent-2)";
               sfx("good");
             } else if (Math.abs(p - 0.82) <= groupWin / 2) {
@@ -541,7 +573,7 @@ function playPitchSequenceManual({ svg, fxHost, ball, labelHost, swingRef, event
               } else {
                 finalResult = Math.random() < 0.60 ? "OUT" : "1B";
               }
-              feedbackText = `GOOD ${selectorResult.pitch.toUpperCase()}!`;
+              feedbackText = `GOOD ${pitchLabel.toUpperCase()}!`;
               feedbackColor = "var(--accent)";
             } else if (p >= 0.58 && p <= 1.04) {
               const outChance = isCorner ? 0.30 : 0.45;
@@ -841,7 +873,7 @@ export function pulseDiamondHome(diamondSvg) {
 function showPitchingSelector(container, player) {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
-    overlay.style.cssText = "position:absolute; inset:0; background:rgba(0,0,0,0.85); z-index:100; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:8px; color:var(--text); font-family:inherit; padding:8px;";
+    overlay.style.cssText = "position:absolute; inset:0; background:rgba(0,0,0,0.88); z-index:100; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:6px; color:var(--text); font-family:inherit; padding:8px;";
     
     // 타이틀
     const title = document.createElement("div");
@@ -861,17 +893,15 @@ function showPitchingSelector(container, player) {
     const pitchRow = document.createElement("div");
     pitchRow.style.cssText = "display:flex; gap:3px; flex-wrap:wrap; justify-content:center;";
     
-    const pitches = (player && player.pitches && player.pitches.length > 0) 
-      ? player.pitches.map(p => p.name || p) 
-      : ["Fastball"];
+    const learnedPitches = getLearnedPitches(player);
 
-    pitches.forEach(pName => {
+    learnedPitches.forEach(pitch => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = t(pName.toLowerCase()) || pName;
-      btn.style.cssText = "padding:4px 8px; font-size:10px; min-width:55px; line-height:1.2;";
+      btn.textContent = t("pitch." + pitch.key) || pitch.name;
+      btn.style.cssText = "padding:4px 6px; font-size:9.5px; min-width:55px; line-height:1.2; font-family:inherit;";
       btn.addEventListener("click", () => {
-        selectedPitch = pName;
+        selectedPitch = pitch;
         for (const child of pitchRow.children) child.classList.remove("primary");
         btn.classList.add("primary");
         checkComplete();
@@ -887,7 +917,7 @@ function showPitchingSelector(container, player) {
     overlay.appendChild(zoneHeader);
 
     const zoneGrid = document.createElement("div");
-    zoneGrid.style.cssText = "display:grid; grid-template-columns:repeat(3, 1fr); gap:3px; width:110px; height:110px; background:rgba(255,255,255,0.05); border:1.5px solid var(--border); padding:3px; border-radius:6px;";
+    zoneGrid.style.cssText = "display:grid; grid-template-columns:repeat(3, 1fr); gap:3px; width:100px; height:100px; background:rgba(255,255,255,0.05); border:1.5px solid var(--border); padding:3px; border-radius:6px;";
 
     for (let i = 0; i < 9; i++) {
       const cell = document.createElement("div");
@@ -907,13 +937,37 @@ function showPitchingSelector(container, player) {
     }
     overlay.appendChild(zoneGrid);
 
+    // 심리전 안내 텍스트 영역
+    const guessInfo = document.createElement("div");
+    guessInfo.style.cssText = "font-size:10px; color:var(--accent); text-align:center; min-height:28px; line-height:1.4; margin-top:2px;";
+    overlay.appendChild(guessInfo);
+
     // 완료 체크
     function checkComplete() {
       if (selectedPitch !== null && selectedZone !== null) {
+        // 타자 AI의 구종 예측 작동 (심리전)
+        const systemGuess = learnedPitches[Math.floor(Math.random() * learnedPitches.length)];
+        const diff = Math.abs(selectedPitch.veloRatio - systemGuess.veloRatio) + Math.abs(selectedPitch.breakRatio - systemGuess.breakRatio);
+        const multiplier = 0.8 + 0.2 * diff;
+
+        const guessName = t("pitch." + systemGuess.key) || systemGuess.name;
+        const actualName = t("pitch." + selectedPitch.key) || selectedPitch.name;
+        const percentStr = Math.round(multiplier * 100);
+
+        guessInfo.innerHTML = `
+          <div style="color:var(--muted);">${t("pitch.batterGuessed") || "타자 예상 구종:"} <strong>${guessName}</strong></div>
+          <div style="font-weight:700; color:${multiplier >= 1.0 ? "var(--good)" : "var(--bad)"}">${actualName} 투구! 능력치 ${percentStr}% 적용</div>
+        `;
+
+        // 잠시 후 오버레이 닫고 결과 반환
         setTimeout(() => {
           overlay.remove();
-          resolve({ pitch: selectedPitch, zone: selectedZone });
-        }, 300);
+          resolve({ 
+            pitch: selectedPitch, 
+            zone: selectedZone, 
+            multiplier: multiplier 
+          });
+        }, 1300); // 심리전 결과를 읽을 시간 부여
       }
     }
 

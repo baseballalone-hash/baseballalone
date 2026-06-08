@@ -1177,4 +1177,15 @@ export const en = {
       vshape: "V-line",
     },
   },
+
+  pitch: {
+    four_seam: "Four-Seam",
+    two_seam: "Two-Seam",
+    sinker: "Sinker",
+    slider: "Slider",
+    curve: "Curve",
+    changeup: "Changeup",
+    knuckle: "Knuckle",
+    batterGuessed: "Batter guessed:",
+  },
 };
