@@ -3682,15 +3682,17 @@ function autoRunPostseason(ps) {
 }
 
 // announce → result 반복 (라운드별). 우승 시 다음 라운드, 패배 시 종료.
+let _postseasonModalShown = false;
 function showPostseasonModalIfNeeded(route) {
   const ps = state.pendingPostseason;
-  if (!ps) return;
-  if (document.querySelector("[data-modal='postseason']")) return;
+  if (!ps || _postseasonModalShown) return;
+  _postseasonModalShown = true;
 
   // skipFinalsModal ON → 모든 시리즈/라운드 자동 시뮬 + 보상 적용 후 모달 없이 종료.
   if (state.settings?.skipFinalsModal) {
     autoRunPostseason(ps);
     state.pendingPostseason = null;
+    _postseasonModalShown = false;
     saveGame();
     route("weekly");
     return;
@@ -3702,6 +3704,13 @@ function showPostseasonModalIfNeeded(route) {
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.dataset.modal = "postseason";
+
+  // 모달이 뒤로가기, 닫기 버튼 등 어떠한 경로로 제거되든 플래그가 고착되는 것을 완벽히 방지
+  const originalRemove = backdrop.remove.bind(backdrop);
+  backdrop.remove = () => {
+    _postseasonModalShown = false;
+    originalRemove();
+  };
   const dialog = document.createElement("div");
   dialog.className = "modal-dialog";
   dialog.style.position = "relative";
