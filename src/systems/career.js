@@ -28,6 +28,9 @@ export function startHighSchoolCareer(playerName, talent, schoolName) {
 export function transitionAfterSeason() {
   const { player } = state;
 
+  // 비시즌(휴식기)을 거치며 부상이 완전히 완치됨을 반영
+  player.injury = null;
+
   // 3학년 시즌까지 끝난 후엔 ageUp으로 grade=4가 됨 → 진로 선택 대기
   if (player.stage === "high" && player.grade > 3) {
     pushLog({ msg: t("log.graduation"), kind: "info" });

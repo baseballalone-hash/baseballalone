@@ -1936,6 +1936,10 @@ function showInjuryToastIfNeeded() {
   const inj = state.player?.injury;
   if (!inj?._isNew) return;
 
+  // 부상 발생 시 게임 진행 일시정지 및 상태 저장 (자동 진행 중 부상 정보 미인지 방지)
+  state.paused = true;
+  saveGame();
+
   if (inj.surgery) {
     showInjuryModal(t("injury.surgery", { weeks: inj.weeksLeft }));   // 큰 부상(수술)은 컷 모달
   } else if (inj.bodyPart) {
