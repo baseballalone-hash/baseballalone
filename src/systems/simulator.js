@@ -678,6 +678,7 @@ function buildLineup(team, mainPlayerForBat, mainTrack = null) {
   let mainOvr = null;
   let mainEntry = null;
   if (mainPlayerForBat) {
+    const b = mainPlayerForBat.batter;
     mainOvr = (b.contact + b.power + b.eye + b.speed) / 4;
     mainEntry = { entry: null, ovr: mainOvr, isMain: true };
   }
