@@ -5,6 +5,7 @@
 import { getTeamById } from "./league.js";
 import { npcOverall } from "./npc.js";
 import { getEffectiveBatter, getEffectivePitcher, BATTER_STATS, PITCHER_STATS, emptyStats, MAIN_INJURY_LUCK, conditionInjuryMultiplier, statScale } from "./player.js";
+import { getBatterOVR, getPitcherOVR } from "./ovrHelper.js";
 
 // 현재 시뮬 중인 경기의 능력치 스케일(=statScale(league.stage)). simulateGame 시작 시 설정.
 // 타석/도루/투수피로 공식이 스탯을 이 값으로 나눠 원래 0~150 스케일에서 동작(공식 재튜닝 불필요).
@@ -238,9 +239,7 @@ function makeLineupState(lineup, bench, side, isPlayerTeam, mainBenchEntry, trac
 }
 
 function entryBatterOVR(e) {
-  const b = e?.batter;
-  if (!b) return 0;
-  return ((b.contact ?? 50) + (b.power ?? 50) + (b.eye ?? 50) + (b.speed ?? 50)) / 4;
+  return getBatterOVR(e);
 }
 function entrySpeed(e) { return e?.batter?.speed ?? 50; }
 
@@ -361,10 +360,52 @@ function maybePinchRun(ls, bases, ctx) {
 // 양방향 선수: 부상 아니면 매 경기 타자로 라인업 + 선발 투수로 등판.
 // opts.forcedRoles 가 주어지면 그대로 사용 (결승/PO 진입 모달에서 미리 굴린 결과 전달용).
 export function simulateGame(league, gameDef, mainPlayer, opts = {}) {
-  // 이 경기 단계의 능력치 스케일 — 타석/도루/피로 공식이 스탯을 이 값으로 정규화.
-  SIM_SCALE = statScale(league?.stage);
   const home = getTeamById(league, gameDef.home);
   const away = getTeamById(league, gameDef.away);
+
+  // Fast-path for NPC-only simulation to optimize CPU/Memory usage during auto-run
+  if (opts.isNpcOnly) {
+    const homeRating = home.roster.filter(p => p.role === "batter" && !p.injury).reduce((acc, p) => acc + npcOverall(p), 0) / 9;
+    const awayRating = away.roster.filter(p => p.role === "batter" && !p.injury).reduce((acc, p) => acc + npcOverall(p), 0) / 9;
+    const homeP = home.roster.find(p => p.role === "pitcher" && !p.injury && p.pos === "SP") || home.roster.find(p => p.role === "pitcher");
+    const awayP = away.roster.find(p => p.role === "pitcher" && !p.injury && p.pos === "SP") || away.roster.find(p => p.role === "pitcher");
+    const homePitchRating = homeP ? npcOverall(homeP) : 60;
+    const awayPitchRating = awayP ? npcOverall(awayP) : 60;
+
+    // Fast-path statistics estimation
+    const homeBase = 3.5 + (homeRating - awayPitchRating) * 0.05 + (Math.random() - 0.5) * 2.5;
+    const awayBase = 3.2 + (awayRating - homePitchRating) * 0.05 + (Math.random() - 0.5) * 2.5;
+    
+    let homeScore = Math.max(0, Math.round(homeBase));
+    let awayScore = Math.max(0, Math.round(awayBase));
+    
+    // Resolve ties
+    if (homeScore === awayScore) {
+      if (Math.random() < 0.5) {
+        homeScore++;
+      } else {
+        awayScore++;
+      }
+    }
+
+    if (homeScore > awayScore) {
+      home.record.w++; away.record.l++;
+    } else {
+      away.record.w++; home.record.l++;
+    }
+
+    return {
+      home: { team: home, score: homeScore, pitcher: homeP ? homeP.name : "-", innings: [] },
+      away: { team: away, score: awayScore, pitcher: awayP ? awayP.name : "-", innings: [] },
+      winner: homeScore > awayScore ? home.name : away.name,
+      coldGame: false,
+      usedNpcPitcherIds: homeP || awayP ? [homeP?.id, awayP?.id].filter(Boolean) : [],
+      mainPlayer: null
+    };
+  }
+
+  // 이 경기 단계의 능력치 스케일 — 타석/도루/피로 공식이 스탯을 이 값으로 정규화.
+  SIM_SCALE = statScale(league?.stage);
 
   const playerTeam = mainPlayer && (home.isPlayerTeam ? home : away.isPlayerTeam ? away : null);
   const mainTeamSide = playerTeam === home ? "home" : (playerTeam === away ? "away" : null);
@@ -557,12 +598,10 @@ function recordLead(history, inning, homeScore, awayScore, homeMound, awayMound)
 
 // OVR (정렬·라인업 슬롯 결정용. 출장 결정에서는 더 이상 사용 안 함)
 export function batterOVR(player) {
-  const b = player.batter;
-  return (b.contact + b.power + b.eye + b.speed) / 4;
+  return getBatterOVR(player);
 }
 export function pitcherOVR(player) {
-  const p = player.pitcher;
-  return (p.velocity + p.control + p.breaking + p.stamina) / 4;
+  return getPitcherOVR(player);
 }
 
 // 출장 룰:
@@ -678,8 +717,7 @@ function buildLineup(team, mainPlayerForBat, mainTrack = null) {
   let mainOvr = null;
   let mainEntry = null;
   if (mainPlayerForBat) {
-    const b = mainPlayerForBat.batter;
-    mainOvr = (b.contact + b.power + b.eye + b.speed) / 4;
+    mainOvr = getBatterOVR(mainPlayerForBat);
     mainEntry = { entry: null, ovr: mainOvr, isMain: true };
   }
   pool.sort((a, b) => b.ovr - a.ovr);

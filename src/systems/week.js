@@ -104,7 +104,8 @@ export function endWeek() {
   // 경기 경험치 클램프용 — 현재 훈련 방향의 능력치 목표 맵 (자동모드 없으면 null).
   const expTargets = directionTargets(player, state.autoMode);
   for (const g of games) {
-    const r = simulateGame(league, g, player);
+    const isPlayerInvolved = player.teamName && (g.home === player.teamName || g.away === player.teamName);
+    const r = simulateGame(league, g, player, { isNpcOnly: !isPlayerInvolved });
     results.push(r);
     // 휴식 카운터는 **메인이 실제 출전한 경기에서만** 갱신한다.
     // (예전엔 그 주 리그 전체 경기 — 메인이 안 뛴 다른 팀 경기 — 마다도 ++ 해서 카운터가 폭증 →

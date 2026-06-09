@@ -693,22 +693,18 @@ export function declineStatsWeekly(player) {
   }
 }
 
+import { getBatterOVR, getPitcherOVR, getCombinedOVR } from "./ovrHelper.js";
+
 // 종합 평가 (스카우트 점수 대용)
 export function overallScore(player) {
-  const b = player.batter;
-  const p = player.pitcher;
-  const bat = (b.contact + b.power + b.eye + b.speed) / 4;
-  const pit = (p.velocity + p.control + p.breaking + p.stamina) / 4;
-  return +((bat * 0.6 + pit * 0.4)).toFixed(1);
+  return getCombinedOVR(player);
 }
 
 // 포지션(타자) / 투수 역할별 OVR — 각 스탯 평균.
 export function roleOVRs(player) {
-  const b = player.batter;
-  const p = player.pitcher;
   return {
-    bat: (b.contact + b.power + b.eye + b.speed) / 4,
-    pit: (p.velocity + p.control + p.breaking + p.stamina) / 4,
+    bat: getBatterOVR(player),
+    pit: getPitcherOVR(player),
   };
 }
 
