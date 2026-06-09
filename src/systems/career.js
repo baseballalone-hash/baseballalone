@@ -486,9 +486,59 @@ const DEMOTION_LADDER = {
 export function checkDemotion(player) {
   const rule = DEMOTION_LADDER[player.stage];
   if (!rule) return null;
+  
+  // 1. OVR 기반 강등 체크 (노쇠화 등으로 기량이 떨어졌을 때)
   const { bat, pit } = roleOVRs(player);
   const belowKeep = bat < rule.minKeepOVR && pit < rule.minKeepOVR;
-  return belowKeep ? rule.down : null;
+  if (belowKeep) return rule.down;
+
+  // 2. 성적 기반 강등 체크 (시즌 성적이 극도로 나쁠 때)
+  const ss = player.seasonStats;
+  if (ss) {
+    let batterBad = false;
+    let pitcherBad = false;
+    let hasBatter = false;
+    let hasPitcher = false;
+
+    // 타자 성적 감점 (최소 50타수)
+    if ((ss.ab ?? 0) >= 50) {
+      hasBatter = true;
+      const obpNum = (ss.h ?? 0) + (ss.bb ?? 0) + (ss.hbp ?? 0);
+      const obpDen = (ss.ab ?? 0) + (ss.bb ?? 0) + (ss.hbp ?? 0) + (ss.sf ?? 0);
+      const obp = obpDen > 0 ? obpNum / obpDen : 0;
+      const slg = ss.ab > 0 ? (ss.tb ?? 0) / ss.ab : 0;
+      const ops = obp + slg;
+      
+      let opsCutoff = 0.600; // pro1 기본 컷오프
+      if (player.stage === "mlb") opsCutoff = 0.630;
+      else if (player.stage === "mlb_aaa" || player.stage === "mlb_aa") opsCutoff = 0.650;
+      
+      if (ops < opsCutoff) batterBad = true;
+    }
+
+    // 투수 성적 감점 (최소 15이닝)
+    if ((ss.pitchG ?? 0) >= 5 && (ss.ip ?? 0) >= 15) {
+      hasPitcher = true;
+      const era = (ss.er ?? 0) * 9 / ss.ip;
+      
+      let eraCutoff = 5.80; // pro1 기본 컷오프
+      if (player.stage === "mlb") eraCutoff = 5.30;
+      else if (player.stage === "mlb_aaa" || player.stage === "mlb_aa") eraCutoff = 5.00;
+      
+      if (era > eraCutoff) pitcherBad = true;
+    }
+
+    // 두 포지션 다 부진한 경우에만 강등 (한쪽이라도 밥값을 하면 잔류)
+    if (hasBatter && hasPitcher) {
+      if (batterBad && pitcherBad) return rule.down;
+    } else if (hasBatter) {
+      if (batterBad) return rule.down;
+    } else if (hasPitcher) {
+      if (pitcherBad) return rule.down;
+    }
+  }
+
+  return null;
 }
 
 export function checkPromotion(player) {
