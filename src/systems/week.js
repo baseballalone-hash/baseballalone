@@ -8,7 +8,7 @@ import {
   declineStatsWeekly,
 } from "./player.js";
 import { simulateGame } from "./simulator.js";
-import { getPlayerTeam, standings } from "./league.js";
+import { getPlayerTeam, standings, getTeamById } from "./league.js";
 import { t } from "../i18n/index.js";
 import { checkFinalAdvance } from "./finals.js";
 import { evaluateAndApplySeasonAwards } from "./awards.js";
@@ -104,7 +104,9 @@ export function endWeek() {
   // 경기 경험치 클램프용 — 현재 훈련 방향의 능력치 목표 맵 (자동모드 없으면 null).
   const expTargets = directionTargets(player, state.autoMode);
   for (const g of games) {
-    const isPlayerInvolved = player.teamName && (g.home === player.teamName || g.away === player.teamName);
+    const homeTeam = getTeamById(league, g.home);
+    const awayTeam = getTeamById(league, g.away);
+    const isPlayerInvolved = player.teamName && (homeTeam?.name === player.teamName || awayTeam?.name === player.teamName);
     const r = simulateGame(league, g, player, { isNpcOnly: !isPlayerInvolved });
     results.push(r);
     // 휴식 카운터는 **메인이 실제 출전한 경기에서만** 갱신한다.
