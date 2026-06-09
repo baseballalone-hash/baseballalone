@@ -1,274 +1,168 @@
-# DEVELOPMENT.md — 개발 / 테스트 / 에셋 가이드
+# DEVELOPMENT.md — 개발 · 테스트 · 배포 가이드
 
-이 문서는 프로젝트의 영속적인 개발, 테스트 및 배포 절차를 정리한 개발자용 가이드입니다.
+개발 환경 설정, 테스트·검증 방법, 배포 절차, 에셋 파이프라인을 정리한 개발자용 가이드.
 
-## 0. 한 줄 요약
-빌드 없음 · Vanilla JS(ESM) · SVG 코드생성 · localStorage 세이브(+Firebase 클라우드) · 정적 호스팅(Firebase) · i18n(en 기본/ko) · 광고 GameMonetize SDK.
-`index.html` 정적 서빙만으로 동작. `main` 푸시 시 GitHub Actions → Firebase Hosting 자동 배포(https://baseball-alone.web.app).
-
----
-
-## 0.1 개발 방식 — 문서화 원칙
-
-이 프로젝트는 기능 구현과 문서를 동기화하여 개발 효율성을 높이는 방식을 사용합니다.
-
-**문서화의 중요성:**
-- 코드는 *무엇을* 하는지 보여주지만, *왜 그렇게 했고 / 현재 어디까지 개발되었고 / 다음에 무엇을 해야 하는지*는 문서에만 남습니다.
-- 코드와 문서가 일치하지 않으면 프로젝트 파악에 시간이 낭비되거나 잘못된 가정을 하기 쉽습니다.
-- **모든 주요 기능 변경이나 밸런스 조정 시 관련 문서(README.md 등)의 변경사항 갱신을 함께 포함합니다.**
-
-**각 문서의 역할:**
-| 문서 | 관점 | 적는 내용 |
-|---|---|---|
-| `README.md` | 플레이어/전체 | 게임 소개 + **버전 changelog**(기능·밸런스 변경 내역) + 문서 안내 + 핵심 시스템/파일구조/로드맵 |
-| `DEVELOPMENT.md` | 개발자 | 개발 방식·도구·의존성·**테스트 방법**·배포·**에셋 파이프라인**(어떻게 개발·검증하나) |
-| `EVENTS.md` | 야구 컨텐츠 | 실제 야구 대비 **이벤트 갭 분석** + 구현 노트 + probe 사용법 + 변경 로그 |
-| `MONETIZATION.md` | 광고/수익화 | **GameMonetize.com SDK** 등록 연동 및 트리거 설정 가이드 |
-| `assets/README.md` | 에셋 | 이미지/오디오 파일명·스펙 규약 및 리소스 목록 |
+> **문서 원칙**: 코드 = *무엇을* / 문서 = *왜·상태·다음*  
+> 모든 주요 변경 시 관련 문서를 함께 갱신합니다.
 
 ---
 
-## 0.5 필요 도구 / 의존성
+## 1. 프로젝트 한 줄 요약
 
-**런타임 의존성: 없음.** 프레임워크/번들러/런타임 npm 패키지 0개 (Vanilla JS ESM). `index.html` 만으로 동작.
+빌드 없음 · Vanilla JS(ESM) · SVG 코드생성 · localStorage 세이브(+Firebase) · Firebase Hosting · i18n(ko/en) · GameMonetize 광고  
+`index.html` 정적 서빙만으로 동작. `main` 푸시 시 GitHub Actions → Firebase Hosting 자동 배포 (<https://baseball-alone.web.app>).
 
-| 구분 | 항목 | 용도 / 비고 |
+---
+
+## 2. 필요 도구 / 의존성
+
+**런타임 의존성: 없음.** 프레임워크/번들러/npm 패키지 0개 (Vanilla JS ESM).
+
+| 구분 | 항목 | 용도 |
 |---|---|---|
-| **런타임(설치 X)** | Firebase SDK 10.13.0 | 클라우드 세이브/로그인. **CDN(gstatic) 직접 import** — 설치 없음. `firebaseConfig` 비면 자동 비활성. |
-| **서버** | Python 3 | `python3 -m http.server` 정적 서빙 (ESM은 file:// 불가) |
+| **런타임(설치 불필요)** | Firebase SDK 10.13.0 | 클라우드 세이브/로그인. CDN(gstatic) 직접 import |
+| **로컬 서버** | Python 3 | `python3 -m http.server` (ESM은 file:// 불가) |
 | **시뮬 테스트** | Node ≥ 18 | `probe.mjs` / `probe-career.mjs` 실행 (ESM, 의존성 0) |
-| **브라우저 테스트** | Playwright `1.60.0` | `npm install --no-save` (커밋 X). 헤드리스 Chromium 구동 |
-| | Chromium 바이너리 | `npx playwright install chromium` (1회) |
-| | apt 시스템 라이브러리 | chromium 구동용 (아래 목록, sudo 1회) |
-| **이미지 가공** | Python **Pillow(PIL)** | 이미지 해상도 조정 및 WebP 변환/축소 |
-| **배포 상태** | GitHub CLI `gh` | `gh run list` 로 Actions 확인 (선택) |
+| **브라우저 테스트** | Playwright 1.60.0 | `npm install --no-save` (커밋 X). 헤드리스 Chromium |
+| **이미지 가공** | Python Pillow(PIL) | 해상도 조정 및 WebP 변환 |
+| **배포 확인** | GitHub CLI `gh` | `gh run list`로 Actions 확인 (선택) |
 | **버전관리** | git | main 푸시 → 자동 배포 |
 
-apt 시스템 라이브러리 (chromium):
-```
-libnspr4 libnss3 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2
-libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1
-libpango-1.0-0 libcairo2 libasound2t64
-```
-
 ---
 
-## 1. 실행
+## 3. 로컬 실행
 
 ```bash
-# 로컬 플레이 (ES Module 은 file:// 로 못 열림 — 반드시 HTTP 서버 필요)
+# ES Module은 file:// 로 열면 CORS 에러 — 반드시 HTTP 서버 경유
 python3 -m http.server 8765
 # → http://localhost:8765 접속
 ```
 
 ---
 
-## 2. 테스트
+## 4. 테스트 / 검증
 
-### 2.1 시뮬 회귀 테스트 (Node.js)
+### 4.1 시뮬 회귀 테스트 (Node.js)
+
+코드 변경 후 반드시 실행. Node ≥ 18 필요.
+
 ```bash
-node probe.mjs          # 단계별 단위 검증. 마지막에 "✅ 전체 통과" 출력 확인
-node probe-career.mjs   # 16세~38세 풀 커리어 시뮬레이션 및 데이터 분포 검증
-```
-기대치:
-- `probe.mjs`: `[FAIL]` 0건, "✅ 전체 통과".
-- `probe-career.mjs`: 프로 시즌 평균 **AVG .24~.27 / ERA 2~4** 등 현실적인 야구 스탯 범위 내에 위치.
-- 로직 변경 후에는 항상 두 테스트를 실행하여 버그 발생 여부를 확인합니다.
-
-### 2.2 브라우저 검증 (Playwright)
-로컬 서버 구동 상태에서 Playwright 테스트 스크립트를 사용하여 핵심 시나리오(시작 화면, 시즌 진행, 모달 레이아웃 등)가 정상 작동하는지 자동 검증합니다.
-
----
-
-## 3. 폴더 구조
-
-```
-├── index.html            # 메인 진입점 및 광고 SDK 스크립트 로드
-├── styles/
-│   └── main.css          # 공용 스타일시트 (모바일 레이아웃 및 다크 모드)
-├── src/
-│   ├── main.js           # 게임 부트스트랩 및 모달/뷰 라우팅 제어
-│   ├── state.js          # 게임 상태(전역 변수, 저장/불러오기, 클라우드 세이브 연동)
-│   ├── systems/          # 게임 엔진 및 시뮬레이션 핵심 로직
-│   │   ├── simulator.js   # 매치 및 투타 At-Bat 시뮬레이션 엔진
-│   │   ├── player.js      # 선수 생성 및 발달 스케일 제어
-│   │   ├── career.js      # 고교/대학/프로 등 커리어 패스 및 성장
-│   │   └── ...
-│   ├── assets/           # 에셋 로더 레이어 (manifest/images/audio)
-│   ├── views/            # 화면별 렌더링 뷰 (menu, weekly, shop, settingsModal)
-│   ├── data/             # 데이터 사전 (구단 정보, 이름 정보, 상점 품목 등)
-│   └── i18n/             # 다국어(ko/en) 사전 모듈
-└── assets/               # 바이너리 에셋 폴더
-    ├── img/              # 이벤트 및 캐릭터 일러스트 리소스
-    └── audio/            # BGM 오디오 파일
+node probe.mjs          # 단위 검증 — 마지막에 "✅ 전체 통과" 출력 확인
+node probe-career.mjs   # 16세~38세 풀 커리어 22시즌 자동 시뮬
+node probe-regression.mjs  # 회귀 시스템 89항목 검증
 ```
 
----
+**기대치:**
+- `probe.mjs`: `[FAIL]` 0건, "✅ 전체 통과"
+- `probe-career.mjs`: 통산 AVG `.230` 대, 시즌 ERA `4~6`, OVR 32~34세 피크 후 노화 감소
+- `probe-regression.mjs`: capBoosts 관련 기존 실패 제외 전체 통과
 
-## 4. 배포 / Git
+### 4.2 브라우저 검증 (Playwright)
 
-- `main` 브랜치 푸시 시 GitHub Actions(`Deploy to Firebase Hosting on merge`)가 작동하여 자동으로 실 배포됩니다.
-- 배포 상태는 `gh run list --limit 5` 로 모니터링할 수 있습니다.
-- 빌드된 결과물만 배포하려면 `ninthinning-web.zip` 번들 형태로 아카이브하여 사용합니다.
-- `node_modules/`, `package-lock.json` 및 기타 임시 원본 폴더는 `.gitignore`에 등록되어 있습니다.
+로컬 서버 구동 상태에서 핵심 시나리오 자동 검증.
 
----
-
-## 5. 에셋 파이프라인 (이미지 / 오디오)
-
-### 5.1 폴백 원칙
-에셋 파일이 존재하지 않거나 로드에 실패하더라도 게임은 에러 없이 정상 구동됩니다.
-- **이미지**: 로드 실패 시 `src/assets/images.js` 가 코드로 그려진 **SVG 벡터 그래픽**으로 즉시 대체합니다.
-- **BGM**: 오디오 파일이 없으면 무음 처리됩니다.
-- **효과음**: 파일 리소스 대신 Web Audio API를 활용하여 코드로 사운드를 실시간 합성(Synthesis)합니다.
-
-### 5.2 이미지 에셋 최적화
-게임에 적용할 이미지는 용량과 모바일 로딩 속도를 최적화하기 위해 WebP 포맷을 적용합니다.
-1. 이미지를 가공 폴더에 준비합니다.
-2. Pillow 라이브러리를 사용하여 모바일 화면에 맞게 해상도(이벤트 컷 512px, 타이틀 640px)를 줄이고 WebP로 변환합니다.
-   ```python
-   from PIL import Image
-   im = Image.open('source.png')
-   W = 512
-   im = im.resize((W, round(im.size[1]*W/im.size[0])), Image.Resampling.LANCZOS)
-   im.save('assets/img/target.webp', 'WEBP', quality=82)
-   ```
-3. 생성된 `assets/img/<이름>.webp`를 `src/assets/manifest.js`에 키와 경로로 매핑합니다.
-
-### 5.3 오디오 에셋
-- **효과음**: `src/assets/audio.js`가 코드로 오실레이터를 제어하여 타격음, 환호성 등을 자동 생성합니다.
-- **BGM**: `assets/audio/bgm-menu.wav`, `bgm-game.wav` 등의 리소스를 활용하며 게임 설정 모달에서 볼륨 조절이 가능합니다.
-
----
-
-## 6. 자주 쓰는 명령
 ```bash
-node probe.mjs && node probe-career.mjs          # 시뮬레이션 회귀 확인
-python3 -m http.server 8765                      # 로컬 서버 구동
+npm install --no-save playwright@1.60.0
+npx playwright install chromium
+# 테스트 스크립트 실행
 ```
 
----
+### 4.3 수동 시나리오 체크리스트
 
-## 7. 향후 작업 로드맵 (Next Steps)
+브라우저에서 직접 확인이 필요한 항목들:
 
-### 7.1 캐릭터 커스터마이징 파츠 고품질 일러스트화 (2단계)
-현재 이미지 생성 API 쿼타 한도(RESOURCE_EXHAUSTED)로 인해 85종의 커스텀 파츠(head, eye, hair, acc, body 등)와 POV 커스텀 레이어가 파이썬 PIL 드로잉 코드로 대체되어 프리셋 일러스트 대비 화풍 이질감이 존재합니다. 쿼타가 해제되는 대로 아래 작업을 진행하여 동일한 카툰 일러스트 화풍으로 교체해야 합니다.
+- [ ] **단경기 마일스톤** — 노히트/완봉/사이클링/끝내기 토스트
+- [ ] **통산 마일스톤** — 100안타/50홈런/100K 임계 도달 토스트
+- [ ] **HBP 부상** — 사구 후 부상 토스트 (부위 + 후유증)
+- [ ] **골든글러브** — 수비형 1시즌 후 시즌 종료 carousel 수상
+- [ ] **드래프트 라이브** — KBO 선택 → 라운드 누적 → 호명 → 계약금
+- [ ] **포스트시즌 시리즈** — 순위권 → 라운드별 시리즈 진행
+- [ ] **명예의 전당** — 은퇴 시 점수 breakdown + 헌액/영구결번/일반 등급
+- [ ] **i18n 토글** — 모든 알림/모달이 KO ↔ EN 즉시 전환
 
-1. **작업 대상 에셋**:
-   * 커스텀 얼굴형 15종 (`head-[round/square/vshape]-skin[1..5].webp`)
-   * 커스텀 눈 모양 5종 (`eye-[calm/sharp/smile/cool/fierce].webp`)
-   * 커스텀 앞/뒷머리 50종 (`hair-front/back-[style]-color[1..5].webp`)
-   * 커스텀 액세서리 5종 (`acc-[cap/glasses/helmet/scar/blush].webp`)
-   * 피부 대응 몸통 5종 (`body-bat-skin[1..5].webp`)
-   * POV 커스텀 손 및 장비 레이어 11종 (`pov-fg-bat-skin[1..5].webp`, `pov-fg-bat-lvl[1..3].webp`, `pov-fg-glove-lvl[1..3].webp`)
+### 4.4 알려진 한계 (실기 확인 대기)
 
-2. **제작 및 가공 가이드**:
-   * AI 이미지 생성 시, 프롬프트에 `on a solid white background` 또는 `isolated on flat white background` 등을 필수 기재하여 배경을 단색으로 통일합니다.
-   * 흰색 배경을 투명 누끼(알파 채널 0)로 자동 제거하는 파스 또는 Pillow 스크립트를 거친 뒤 420x562 규격의 WebP 파일로 덮어씌워 렌더링 완성도를 높여야 합니다.
-
----
-
-## 8. 2026-06-09 리팩토링 및 버그수정 기록
-
-### 8.1 게임 디자인 변경
-
-#### 능력치 간소화
-- **제거된 능력치**: `defense`(수비), `mental`(정신력) 완전 제거
-- **영향 범위**: `player.js`, `npc.js`, `regression.js`, `simulator.js`, `milestones.js`, `awards.js`, `offseason.js`, `shopCatalog.js`
-
-#### 재능(Talent) 5종으로 통합
-| 재능 Key | 이름 | 가중치 |
-|---|---|---|
-| `slugger` | 거포 | 파워 ×1.5, 컨택 ×1.3 |
-| `sprinter` | 교타/주루 | 컨택 ×1.3, 주력 ×1.3, 선구 ×1.2 |
-| `fireballer` | 강속구 | 구속 ×1.5, 스태미나 ×1.3 |
-| `tactician` | 기교파 | 제구 ×1.5, 변화구 ×1.3 |
-| `all_round` | 올라운더 | 전 스탯 ×1.1 |
-
-#### 자동 훈련 방향 7종으로 정리
-| Key | 이름 | 특성 |
-|---|---|---|
-| `slugger` | 거포 | 파워 집중 빌드 |
-| `contact_speed` | 교타/주루 | 컨택·주력·선구 |
-| `batter_balance` | 타자 밸런스 | 4대 타자 스탯 균등 |
-| `fireballer` | 강속구 | 구속·스태미나 집중 |
-| `breaking` | 변화구 | 변화구·제구 집중 |
-| `pitcher_balance` | 투수 밸런스 | 4대 투수 스탯 균등 |
-| `two_way` | 올 밸런스 | 전 스탯 균등 |
-
-#### KBO 1군/2군 스탯 배율 교체
-- `pro1` 배율: `0.88`으로 조정 (기존 값 교체)
-- `pro2` 배율: `0.80`으로 조정
+- **BGM 백그라운드**: `visibilitychange` pause — 샌드박스에서 재현 불가, 실기 필요
+- **Google 로그인**: authDomain 정렬 후 배포 실기 확인 필요
+- **결승 마지막 주 멈춤**: DOM 의존 버그, 실기 재현 확인 대기
+- **능력치 스케일업 밸런스**: `probe-career`가 전지훈련을 거치지 않아 주인공 과소평가 → 실기 확인
 
 ---
 
-### 8.2 버그 수정
+## 5. 배포
 
-#### `simulator.js` — ReferenceError 크리티컬 버그 수정 (커밋: `6e6400e`)
-- **위치**: `buildLineup` 함수 내부
-- **원인**: 주인공이 포함된 팀의 라인업 구성 시 타자 스탯 객체를 가리키는 `b` 변수가 선언 없이 참조되어 `ReferenceError: b is not defined` 발생
-- **수정**: `const b = mainPlayerForBat.batter;` 선언 추가
+```bash
+# main 브랜치 푸시 시 GitHub Actions가 자동 배포
+git push origin main
 
-#### `week.js` — 주인공 팀 경기 NPC 전용으로 잘못 시뮬레이션되는 버그 수정 (커밋: `a53cdbe`)
-- **원인**: 경기 스케줄 데이터의 홈/어웨이는 숫자 팀 ID이지만, 플레이어 소속 팀 비교에 문자열(`player.teamName`)을 직접 비교하여 항상 `false`가 반환됨 → 주인공 팀 경기 전체가 NPC 전용 fast-path로 우회되어 시즌 성적이 모두 0으로 기록되는 문제
-- **수정**: `getTeamById(league, g.home)?.name === player.teamName` 형태로 팀 객체 조회 후 이름 비교로 교정
-
----
-
-### 8.3 자동 훈련 프리셋 마이그레이션 시스템 구축 (커밋: `d34c997`, `fc9120d`)
-
-구버전 세이브 데이터에 저장된 레거시 자동 훈련 키(`contact`, `speedster`, `defender`, `finesse`, `recovery`)가 신규 프리셋과 충돌하여 자동 진행 루프가 멈추는 현상 수정.
-
-**두 계층에서 안전망 구축:**
-1. **`state.js` (`loadGame` → `migrateSave`)**: 세이브 데이터 불러오기 시점에 레거시 키를 신규 키로 즉시 변환
-2. **`autoTrain.js` (`getPreset` 헬퍼)**: 모든 프리셋 조회 함수가 `getPreset()` 단일 헬퍼를 경유. 알 수 없는 키가 전달되더라도 폴백(`two_way`)으로 안전하게 처리
-
-| 구버전 키 | 매핑 신규 키 |
-|---|---|
-| `contact` | `contact_speed` |
-| `speedster` | `contact_speed` |
-| `defender` | `contact_speed` |
-| `finesse` | `breaking` |
-| `recovery` | `two_way` |
-| 기타 미인식 키 | `two_way` |
-
----
-
-### 8.4 성능 최적화 — NPC-only 경기 고속 시뮬레이션 (커밋: `880f961`)
-
-주간 리그 시뮬레이션에서 플레이어가 참여하지 않는 **NPC간 경기**에 대해 기존의 타석별 이벤트 시뮬레이션을 완전히 생략하는 **fast-path 분기** 도입.
-
-- **`week.js`**: 각 경기별로 플레이어 팀 참여 여부를 판단, NPC 전용 경기에 `{ isNpcOnly: true }` 옵션 전달
-- **`simulator.js`**: `opts.isNpcOnly` 시 타석 시뮬레이션 전체를 건너뛰고, 양 팀 OVR 기반 통계적 점수 산출 후 즉시 반환
-- **효과**: NPC 경기당 수백~수천 개의 이벤트 객체 할당이 사라져 주간 자동 진행 속도 및 가비지 컬렉션 부담이 크게 개선됨
-
----
-
-### 8.5 OVR 계산 로직 중앙화 (커밋: `880f961`)
-
-**신설 파일**: `src/systems/ovrHelper.js`
-
-`player.js`와 `simulator.js` 곳곳에 하드코딩으로 중복 작성되어 있던 스탯 합산 평균 공식들을 단일 유틸리티 모듈로 통합.
-
-| 함수 | 설명 |
-|---|---|
-| `getBatterOVR(player)` | 타자 4대 스탯 평균 (컨택·파워·선구·주력) |
-| `getPitcherOVR(player)` | 투수 4대 스탯 평균 (구속·제구·변화·스태미나) |
-| `getCombinedOVR(player)` | 투타 가중 종합 OVR (타자 60% + 투수 40%) |
-
-**변경 파일**: `player.js`의 `overallScore`, `roleOVRs`, `simulator.js`의 `batterOVR`, `pitcherOVR`, `entryBatterOVR`, `buildLineup` 내부 계산 — 모두 위 헬퍼 함수 위임으로 교체
-
----
-
-### 8.6 폴더 구조 업데이트
-
-```
-src/systems/
-  ├── simulator.js    # NPC fast-path 추가, OVR 중복 공식 제거
-  ├── player.js       # overallScore/roleOVRs 를 ovrHelper 위임
-  ├── ovrHelper.js    # (신설) OVR 계산 공통 유틸리티
-  ├── autoTrain.js    # getPreset 헬퍼 추가, 전 함수가 안전 조회 경유
-  └── week.js         # NPC-only 플래그 전달 + getTeamById 정확 비교
-src/state.js          # migrateSave에서 레거시 autoMode 키 자동 변환
+# 배포 상태 확인
+gh run list --limit 5
 ```
 
+- **자동 배포**: `main` 푸시 → `Deploy to Firebase Hosting on merge` Actions 실행
+- **GameMonetize 번들**: `baseballalone-gm.zip` (index.html + src + styles + assets, .md/probe 제외, ~4MB)
+- `.gitignore`: `node_modules/`, `package-lock.json`, `*.zip` 등록
+
+---
+
+## 6. 에셋 파이프라인
+
+### 6.1 폴백 원칙
+
+에셋 파일이 없어도 게임은 에러 없이 정상 구동합니다.
+
+- **이미지**: 로드 실패 시 `src/assets/images.js`가 SVG 벡터로 즉시 대체
+- **BGM**: 오디오 파일 없으면 무음
+- **효과음**: 파일 없이 Web Audio API로 코드 합성
+
+### 6.2 이미지 에셋 추가
+
+```python
+from PIL import Image
+im = Image.open('source.png')
+W = 512  # 이벤트 컷 기준 (타이틀은 640)
+im = im.resize((W, round(im.size[1]*W/im.size[0])), Image.Resampling.LANCZOS)
+im.save('assets/img/target.webp', 'WEBP', quality=82)
+```
+
+생성된 `assets/img/<이름>.webp`를 `src/assets/manifest.js`에 키와 경로로 매핑.
+
+에셋 규약 상세는 [`assets/README.md`](./assets/README.md) 참조.
+
+### 6.3 캐릭터 커스터마이징 파츠 고품질화 (미완성)
+
+이미지 생성 API 쿼타 한도로 85종 커스텀 파츠가 PIL 드로잉 코드로 대체되어 있습니다.  
+쿼타 해제 후 카툰 일러스트 화풍으로 교체 필요:
+
+**대상 에셋:**
+- 커스텀 얼굴형 15종 (`head-[round/square/vshape]-skin[1..5].webp`)
+- 커스텀 눈 5종 (`eye-[calm/sharp/smile/cool/fierce].webp`)
+- 앞/뒷머리 50종 (`hair-front/back-[style]-color[1..5].webp`)
+- 액세서리 5종 (`acc-[cap/glasses/helmet/scar/blush].webp`)
+- 몸통 5종 (`body-bat-skin[1..5].webp`)
+- POV 레이어 11종 (`pov-fg-bat-skin[1..5].webp` 등)
+
+**가공 가이드:**
+- AI 생성 프롬프트에 `on a solid white background` 필수 기재
+- 흰 배경을 투명(알파 0)으로 제거 후 420x562 WebP로 저장
+
+### 6.4 오디오 에셋
+
+- **효과음**: `src/assets/audio.js`가 Web Audio API 오실레이터로 타격음·환호성 합성
+- **BGM**: `assets/audio/bgm-menu.wav`, `bgm-game.wav`. 설정 모달에서 볼륨 조절
+
+---
+
+## 7. 자주 쓰는 명령
+
+```bash
+# 검증
+node probe.mjs
+node probe-career.mjs
+
+# 로컬 서버
+python3 -m http.server 8765
+
+# 배포 확인
+gh run list --limit 5
+```
