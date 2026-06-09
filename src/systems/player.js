@@ -664,15 +664,39 @@ export function ageUp(player) {
   else if (age >= 33 + delay) { declineChance = 0.30; declineMax = 3; }
   else                        { declineChance = 0.10; declineMax = 2; }  // 30-32 + delay
 
+  const declines = [];
+
   for (const stat of BATTER_STATS) {
     if (Math.random() < declineChance) {
-      player.batter[stat] = Math.max(20, player.batter[stat] - rndInt(1, declineMax));
+      const before = player.batter[stat];
+      const loss = rndInt(1, declineMax);
+      const after = Math.max(20, before - loss);
+      player.batter[stat] = after;
+      const diff = +(before - after).toFixed(1);
+      if (diff > 0) {
+        declines.push({ name: stat, loss: diff });
+      }
     }
   }
   for (const stat of PITCHER_STATS) {
     if (Math.random() < declineChance) {
-      player.pitcher[stat] = Math.max(20, player.pitcher[stat] - rndInt(1, declineMax));
+      const before = player.pitcher[stat];
+      const loss = rndInt(1, declineMax);
+      const after = Math.max(20, before - loss);
+      player.pitcher[stat] = after;
+      const diff = +(before - after).toFixed(1);
+      if (diff > 0) {
+        declines.push({ name: stat, loss: diff });
+      }
     }
+  }
+
+  if (declines.length > 0) {
+    const listStr = declines.map(d => `${t("stat." + d.name)} -${d.loss}`).join(", ");
+    pushLog({
+      msg: t("log.agingDecline", { stats: listStr }),
+      kind: "bad"
+    });
   }
 }
 
