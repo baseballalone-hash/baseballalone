@@ -5,6 +5,7 @@
 import { state, pushLog, pushToast } from "../state.js";
 import {
   applyTraining, applyWork, applyRest, tickConditionWeekly, ageUp, overallScore, applyGameExperience, applyInjury,
+  declineStatsWeekly,
 } from "./player.js";
 import { simulateGame } from "./simulator.js";
 import { getPlayerTeam, standings } from "./league.js";
@@ -78,6 +79,9 @@ export function endWeek() {
   // 주말 컨디션/부상 갱신 + 체력 회복
   tickConditionWeekly(player);
   player.stamina = Math.min(player.maxStamina, player.stamina + 50);
+
+  // 노화로 인한 능력치 주간 하락 적용
+  declineStatsWeekly(player);
 
   // NPC 부상 카운터 감소 — 게임 시뮬레이션 *전에* 처리해서, 이번 주에 새로
   // 발생한 부상은 다음 주 endWeek 부터 깎이도록.

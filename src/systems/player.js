@@ -651,27 +651,30 @@ export function applyGameExperience(player, mainPlayerResult, targets = null) {
 export function ageUp(player) {
   player.age += 1;
   player.grade += 1;
+}
+
+export function declineStatsWeekly(player) {
   const age = player.age;
   // 회귀 효과: prime_extend 의 agingDelay — 노화 시작 +N년 시프트.
   const delay = effectAdd(player, "agingDelay", "years");
   if (age < 30 + delay) return;
 
   // 구간별 (확률, 최대 감쇄폭). delay 적용 시 임계 자체가 시프트.
-  let declineChance, declineMax;
-  if (age >= 40 + delay)      { declineChance = 0.85; declineMax = 6; }
-  else if (age >= 38 + delay) { declineChance = 0.70; declineMax = 5; }
-  else if (age >= 36 + delay) { declineChance = 0.50; declineMax = 4; }
-  else if (age >= 33 + delay) { declineChance = 0.30; declineMax = 3; }
-  else                        { declineChance = 0.10; declineMax = 2; }  // 30-32 + delay
+  let weeklyChance, declineMax;
+  if (age >= 40 + delay)      { weeklyChance = 0.425; declineMax = 6; }
+  else if (age >= 38 + delay) { weeklyChance = 0.350; declineMax = 5; }
+  else if (age >= 36 + delay) { weeklyChance = 0.250; declineMax = 4; }
+  else if (age >= 33 + delay) { weeklyChance = 0.150; declineMax = 3; }
+  else                        { weeklyChance = 0.050; declineMax = 2; }  // 30-32 + delay
 
   const declines = [];
 
   for (const stat of BATTER_STATS) {
-    if (Math.random() < declineChance) {
+    if (Math.random() < weeklyChance) {
       const before = player.batter[stat];
-      const loss = rndInt(1, declineMax);
+      const loss = +(0.1 * rndInt(1, declineMax)).toFixed(1);
       const after = Math.max(20, before - loss);
-      player.batter[stat] = after;
+      player.batter[stat] = +after.toFixed(1);
       const diff = +(before - after).toFixed(1);
       if (diff > 0) {
         declines.push({ name: stat, loss: diff });
@@ -679,11 +682,11 @@ export function ageUp(player) {
     }
   }
   for (const stat of PITCHER_STATS) {
-    if (Math.random() < declineChance) {
+    if (Math.random() < weeklyChance) {
       const before = player.pitcher[stat];
-      const loss = rndInt(1, declineMax);
+      const loss = +(0.1 * rndInt(1, declineMax)).toFixed(1);
       const after = Math.max(20, before - loss);
-      player.pitcher[stat] = after;
+      player.pitcher[stat] = +after.toFixed(1);
       const diff = +(before - after).toFixed(1);
       if (diff > 0) {
         declines.push({ name: stat, loss: diff });
@@ -694,7 +697,7 @@ export function ageUp(player) {
   if (declines.length > 0) {
     const listStr = declines.map(d => `${t("stat." + d.name)} -${d.loss}`).join(", ");
     pushLog({
-      msg: t("log.agingDecline", { stats: listStr }),
+      msg: t("log.weeklyAgingDecline", { stats: listStr }),
       kind: "bad"
     });
   }

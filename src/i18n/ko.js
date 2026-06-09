@@ -891,6 +891,7 @@ export const ko = {
     promotedMidseason: "시즌 중 {stage} {team} 콜업!",
     demoted: "{stage} {team}(으)로 강등...",
     agingDecline: "노쇠화로 인해 능력치가 하락했습니다: {stats}",
+    weeklyAgingDecline: "노쇠화로 인해 이번 주 능력치가 하락했습니다: {stats}",
   },
 
   promotion: {

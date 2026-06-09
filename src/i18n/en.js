@@ -887,6 +887,7 @@ export const en = {
     promotedMidseason: "Called up to {team} ({stage}) mid-season!",
     demoted: "Demoted to {team} ({stage})...",
     agingDecline: "Stats declined due to aging: {stats}",
+    weeklyAgingDecline: "Stats declined due to aging this week: {stats}",
   },
 
   promotion: {
