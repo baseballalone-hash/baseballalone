@@ -9,6 +9,7 @@ import { t, getLocale } from "../i18n/index.js";
 import { resetGameDateForNewSeason, SEASON_START_MONTH } from "./tick.js";
 import { overallScore, addFame, nationalTeamRating, roleOVRs, emptyStats } from "./player.js";
 import { effectAdd } from "./traitEffects.js";
+import { simulateGame } from "./simulator.js";
 
 export function startHighSchoolCareer(playerName, talent, schoolName) {
   // 학교가 명시 안되면 현재 locale의 고교 풀에서 무작위 배정
@@ -658,17 +659,23 @@ export function applyMidseasonCallup(player, toStage) {
   player.gamesSinceLastPitch = 99;
   player.injury = null;
 
-  // 5. 날짜 리셋 (시즌 처음으로)
-  if (state.gameDate) {
-    state.gameDate.month = SEASON_START_MONTH;
-    state.gameDate.dayOfMonth = 1;
-    state.gameDate.day = 1;
-    state.gameDate.dayOfWeek = 0;
-  }
+  // 5. 기존 weekIndex 가져오기 (날짜는 리셋하지 않고 그대로 유지)
+  const currentWeek = state.season ? state.season.weekIndex : 0;
 
   // 6. 리그 및 시즌 새로 생성
   state.league = createLeague(toStage, player.teamName);
   state.season = createSeason(toStage);
+
+  // 7. 이전 주들의 다른 팀 경기 시뮬레이션 (새 리그에 순위/경기 기록 누적)
+  for (let w = 0; w < currentWeek; w++) {
+    const games = state.league.schedule[w] ?? [];
+    for (const g of games) {
+      simulateGame(state.league, g, null);
+    }
+  }
+
+  // 8. 시즌 상태 복구
+  state.season.weekIndex = currentWeek;
 
   pushLog({
     msg: t("log.promotedMidseason", { stage: t("stage." + toStage), team: player.teamName }),
