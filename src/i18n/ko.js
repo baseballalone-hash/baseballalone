@@ -82,14 +82,16 @@ export const ko = {
   },
 
   talent: {
-    contact: "컨택형",
-    power: "파워형",
-    speedster: "주루형",
-    defender: "수비형",
-    all_round: "만능형",
-    fireball: "강속구형",
-    finesse: "제구형",
-    breakerz: "변화구형",
+    contact:      "컨택형",
+    power:        "파워형",
+    speedster:    "주루형",
+    defender:     "수비형",
+    bat_balanced: "타자밸런스형",
+    all_round:    "만능형",
+    fireball:     "강속구형",
+    finesse:      "제구형",
+    breakerz:     "변화구형",
+    pit_balanced: "투수밸런스형",
   },
 
   training: {

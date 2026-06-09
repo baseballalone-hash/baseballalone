@@ -1060,14 +1060,16 @@ function makeTalentSelect(slotIdx) {
   container.appendChild(btn);
 
   const TALENT_THEMES = {
-    contact:   { color: "#22c55e", bg: "rgba(34, 197, 94, 0.08)", border: "rgba(34, 197, 94, 0.4)" },
-    power:     { color: "#f97316", bg: "rgba(249, 115, 22, 0.08)", border: "rgba(249, 115, 22, 0.4)" },
-    speedster: { color: "#eab308", bg: "rgba(234, 179, 8, 0.08)", border: "rgba(234, 179, 8, 0.4)" },
-    defender:  { color: "#0d9488", bg: "rgba(13, 148, 136, 0.08)", border: "rgba(13, 148, 136, 0.4)" },
-    all_round: { color: "#d97706", bg: "rgba(217, 119, 6, 0.08)", border: "rgba(217, 119, 6, 0.4)" },
-    fireball:  { color: "#a855f7", bg: "rgba(168, 85, 247, 0.08)", border: "rgba(168, 85, 247, 0.4)" },
-    finesse:   { color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)", border: "rgba(6, 182, 212, 0.4)" },
-    breakerz:  { color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)", border: "rgba(99, 102, 241, 0.4)" },
+    contact:      { color: "#22c55e", bg: "rgba(34, 197, 94, 0.08)", border: "rgba(34, 197, 94, 0.4)" },
+    power:        { color: "#f97316", bg: "rgba(249, 115, 22, 0.08)", border: "rgba(249, 115, 22, 0.4)" },
+    speedster:    { color: "#eab308", bg: "rgba(234, 179, 8, 0.08)", border: "rgba(234, 179, 8, 0.4)" },
+    defender:     { color: "#0d9488", bg: "rgba(13, 148, 136, 0.08)", border: "rgba(13, 148, 136, 0.4)" },
+    bat_balanced: { color: "#10b981", bg: "rgba(16, 185, 129, 0.08)", border: "rgba(16, 185, 129, 0.4)" },
+    all_round:    { color: "#d97706", bg: "rgba(217, 119, 6, 0.08)", border: "rgba(217, 119, 6, 0.4)" },
+    fireball:     { color: "#a855f7", bg: "rgba(168, 85, 247, 0.08)", border: "rgba(168, 85, 247, 0.4)" },
+    finesse:      { color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)", border: "rgba(6, 182, 212, 0.4)" },
+    breakerz:     { color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)", border: "rgba(99, 102, 241, 0.4)" },
+    pit_balanced: { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.08)", border: "rgba(59, 130, 246, 0.4)" },
   };
 
   function updateButtonState(val) {
@@ -1128,14 +1130,16 @@ function openTalentPickerModal(slotIdx, currentVal, onSelect) {
   list.style.cssText = "flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;";
 
   const TALENT_THEMES = {
-    contact:   { color: "#22c55e", bg: "rgba(34, 197, 94, 0.08)", border: "rgba(34, 197, 94, 0.2)" },
-    power:     { color: "#f97316", bg: "rgba(249, 115, 22, 0.08)", border: "rgba(249, 115, 22, 0.2)" },
-    speedster: { color: "#eab308", bg: "rgba(234, 179, 8, 0.08)", border: "rgba(234, 179, 8, 0.2)" },
-    defender:  { color: "#0d9488", bg: "rgba(13, 148, 136, 0.08)", border: "rgba(13, 148, 136, 0.2)" },
-    all_round: { color: "#d97706", bg: "rgba(217, 119, 6, 0.08)", border: "rgba(217, 119, 6, 0.2)" },
-    fireball:  { color: "#a855f7", bg: "rgba(168, 85, 247, 0.08)", border: "rgba(168, 85, 247, 0.2)" },
-    finesse:   { color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)", border: "rgba(6, 182, 212, 0.2)" },
-    breakerz:  { color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)", border: "rgba(99, 102, 241, 0.2)" },
+    contact:      { color: "#22c55e", bg: "rgba(34, 197, 94, 0.08)", border: "rgba(34, 197, 94, 0.2)" },
+    power:        { color: "#f97316", bg: "rgba(249, 115, 22, 0.08)", border: "rgba(249, 115, 22, 0.2)" },
+    speedster:    { color: "#eab308", bg: "rgba(234, 179, 8, 0.08)", border: "rgba(234, 179, 8, 0.2)" },
+    defender:     { color: "#0d9488", bg: "rgba(13, 148, 136, 0.08)", border: "rgba(13, 148, 136, 0.2)" },
+    bat_balanced: { color: "#10b981", bg: "rgba(16, 185, 129, 0.08)", border: "rgba(16, 185, 129, 0.2)" },
+    all_round:    { color: "#d97706", bg: "rgba(217, 119, 6, 0.08)", border: "rgba(217, 119, 6, 0.2)" },
+    fireball:     { color: "#a855f7", bg: "rgba(168, 85, 247, 0.08)", border: "rgba(168, 85, 247, 0.2)" },
+    finesse:      { color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)", border: "rgba(6, 182, 212, 0.2)" },
+    breakerz:     { color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)", border: "rgba(99, 102, 241, 0.2)" },
+    pit_balanced: { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.08)", border: "rgba(59, 130, 246, 0.2)" },
   };
 
   for (const [key, talent] of Object.entries(TALENTS)) {

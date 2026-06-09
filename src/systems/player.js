@@ -37,14 +37,16 @@ export function getStatLabels() {
 
 // 재능 타입 — 훈련 효율에 영향. 라벨은 i18n 의 talent.<key>.
 export const TALENTS = {
-  contact:   { boost: { contact: 1.4, eye: 1.2 } },
-  power:     { boost: { power: 1.4, contact: 1.2 } },
-  speedster: { boost: { speed: 1.5, contact: 1.2 } },
-  defender:  { boost: { defense: 1.5, speed: 1.2 } },
-  all_round: { boost: { contact: 1.15, power: 1.15, eye: 1.15, speed: 1.15, defense: 1.15, velocity: 1.15, control: 1.15, breaking: 1.15, stamina: 1.15, mental: 1.15 } },
-  fireball:  { boost: { velocity: 1.5, stamina: 1.2 } },
-  finesse:   { boost: { control: 1.5, mental: 1.2 } },
-  breakerz:  { boost: { breaking: 1.5, control: 1.2 } },
+  contact:      { boost: { contact: 1.4, eye: 1.2 } },
+  power:        { boost: { power: 1.4, contact: 1.2 } },
+  speedster:    { boost: { speed: 1.5, contact: 1.2 } },
+  defender:     { boost: { defense: 1.5, speed: 1.2 } },
+  bat_balanced: { boost: { contact: 1.25, power: 1.25, eye: 1.25, speed: 1.25, defense: 1.25 } },
+  all_round:    { boost: { contact: 1.15, power: 1.15, eye: 1.15, speed: 1.15, defense: 1.15, velocity: 1.15, control: 1.15, breaking: 1.15, stamina: 1.15, mental: 1.15 } },
+  fireball:     { boost: { velocity: 1.5, stamina: 1.2 } },
+  finesse:      { boost: { control: 1.5, mental: 1.2 } },
+  breakerz:     { boost: { breaking: 1.5, control: 1.2 } },
+  pit_balanced: { boost: { velocity: 1.25, control: 1.25, breaking: 1.25, stamina: 1.25, mental: 1.25 } },
 };
 
 // 훈련 카탈로그. 라벨은 i18n 의 training.<key>.
@@ -183,9 +185,11 @@ function decideMainPosition(talentKey, batter, pitcher) {
     case "power":     return Math.random() < 0.5 ? "1B" : "RF";
     case "defender":  return ["C", "SS", "CF"][Math.floor(Math.random() * 3)];
     case "contact":   return Math.random() < 0.5 ? "2B" : "3B";
+    case "bat_balanced": return ["LF", "CF", "RF"][Math.floor(Math.random() * 3)];
     case "fireball":
     case "finesse":
-    case "breakerz":  return "DH";   // 투수형 — 타석 설 일 적음
+    case "breakerz":
+    case "pit_balanced": return "DH";   // 투수형 — 타석 설 일 적음
     case "all_round":
     default:          return Math.random() < 0.5 ? "LF" : "3B";
   }

@@ -18,12 +18,22 @@ const OUTCOME_WEIGHTS = { great: 0.20, ok: 0.70, bad: 0.10 };
 
 // ─── 헬퍼 ─────────────────────────────────────────────────────────
 export function getPlayerTalentCategory(player) {
-  const talents = Array.isArray(player?.talents) && player.talents.length > 0
-    ? player.talents
-    : [player?.talent].filter(Boolean);
+  const batterTalents = ["contact", "power", "speedster", "defender", "bat_balanced"];
+  const pitcherTalents = ["fireball", "finesse", "breakerz", "pit_balanced"];
+  // all_round / 미분류 재능은 balanced 취급 (아래 hasBatter/hasPitcher 모두 false → balanced)
 
-  const batterTalents = ["contact", "power", "speedster", "defender"];
-  const pitcherTalents = ["fireball", "finesse", "breakerz"];
+  // player.talent (primary) 를 항상 포함시켜 저장 데이터의 talents 배열 불일치를 방어.
+  const primaryTalent = player?.talent;
+  const talentArr = Array.isArray(player?.talents) && player.talents.length > 0
+    ? player.talents
+    : [];
+
+  // 중복 제거: primary 를 앞에 놓되 이미 있으면 무시
+  const talents = primaryTalent
+    ? [primaryTalent, ...talentArr.filter(t => t !== primaryTalent)]
+    : talentArr.length > 0
+      ? talentArr
+      : [];
 
   let hasBatter = false;
   let hasPitcher = false;

@@ -82,14 +82,16 @@ export const en = {
   },
 
   talent: {
-    contact: "Contact",
-    power: "Power",
-    speedster: "Speedster",
-    defender: "Defender",
-    all_round: "All-Round",
-    fireball: "Fireballer",
-    finesse: "Finesse",
-    breakerz: "Breaking-ball",
+    contact:      "Contact",
+    power:        "Power",
+    speedster:    "Speedster",
+    defender:     "Defender",
+    bat_balanced: "Bat Balance",
+    all_round:    "All-Round",
+    fireball:     "Fireballer",
+    finesse:      "Finesse",
+    breakerz:     "Breaking-ball",
+    pit_balanced: "Pit Balance",
   },
 
   training: {
