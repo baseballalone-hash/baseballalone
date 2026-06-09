@@ -1034,21 +1034,187 @@ function renderTalentField() {
 }
 
 function makeTalentSelect(slotIdx) {
-  const select = document.createElement("select");
-  select.style.cssText = "width:100%; margin-top:" + (slotIdx === 0 ? "0" : "4px") + ";";
-  for (const [key, talent] of Object.entries(TALENTS)) {
-    const opt = document.createElement("option");
-    opt.value = key;
-    opt.textContent = `${t("talent." + key)} — ${describeBoost(talent.boost)}`;
-    select.appendChild(opt);
+  const container = document.createElement("div");
+  container.style.cssText = "margin-top:" + (slotIdx === 0 ? "0" : "6px") + "; position: relative;";
+
+  const btn = document.createElement("div");
+  btn.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--panel-2); cursor: pointer; transition: all 150ms ease-in-out; font-size: 13.5px; user-select: none;";
+  
+  const labelSpan = document.createElement("span");
+  labelSpan.style.cssText = "font-weight: 700;";
+  
+  const boostSpan = document.createElement("span");
+  boostSpan.style.cssText = "font-size: 11px; opacity: 0.8; margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; text-align: left;";
+
+  const leftWrap = document.createElement("div");
+  leftWrap.style.cssText = "display: flex; align-items: center; overflow: hidden; flex: 1;";
+  leftWrap.appendChild(labelSpan);
+  leftWrap.appendChild(boostSpan);
+  btn.appendChild(leftWrap);
+
+  const arrow = document.createElement("span");
+  arrow.innerHTML = "&#9662;"; // small down arrow
+  arrow.style.cssText = "font-size: 12px; opacity: 0.6; margin-left: 8px; flex-shrink: 0;";
+  btn.appendChild(arrow);
+
+  container.appendChild(btn);
+
+  const TALENT_THEMES = {
+    contact:   { color: "#22c55e", bg: "rgba(34, 197, 94, 0.08)", border: "rgba(34, 197, 94, 0.4)" },
+    power:     { color: "#f97316", bg: "rgba(249, 115, 22, 0.08)", border: "rgba(249, 115, 22, 0.4)" },
+    speedster: { color: "#eab308", bg: "rgba(234, 179, 8, 0.08)", border: "rgba(234, 179, 8, 0.4)" },
+    defender:  { color: "#0d9488", bg: "rgba(13, 148, 136, 0.08)", border: "rgba(13, 148, 136, 0.4)" },
+    all_round: { color: "#d97706", bg: "rgba(217, 119, 6, 0.08)", border: "rgba(217, 119, 6, 0.4)" },
+    fireball:  { color: "#a855f7", bg: "rgba(168, 85, 247, 0.08)", border: "rgba(168, 85, 247, 0.4)" },
+    finesse:   { color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)", border: "rgba(6, 182, 212, 0.4)" },
+    breakerz:  { color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)", border: "rgba(99, 102, 241, 0.4)" },
+  };
+
+  function updateButtonState(val) {
+    const theme = TALENT_THEMES[val] || { color: "var(--text)", bg: "var(--panel-2)", border: "var(--border)" };
+    btn.style.borderColor = theme.border;
+    btn.style.background = theme.bg;
+    labelSpan.textContent = t("talent." + val);
+    labelSpan.style.color = theme.color;
+    
+    const talent = TALENTS[val];
+    boostSpan.textContent = talent ? `(${describeBoost(talent.boost)})` : "";
   }
-  select.value = draft.talents[slotIdx] ?? draft.talent;
-  select.addEventListener("change", e => {
-    draft.talents[slotIdx] = e.target.value;
-    if (slotIdx === 0) draft.talent = e.target.value;
-    refreshPreview();
+
+  const initialVal = draft.talents[slotIdx] ?? draft.talent;
+  updateButtonState(initialVal);
+
+  btn.addEventListener("click", () => {
+    const activeVal = draft.talents[slotIdx] ?? draft.talent;
+    openTalentPickerModal(slotIdx, activeVal, (newVal) => {
+      draft.talents[slotIdx] = newVal;
+      if (slotIdx === 0) draft.talent = newVal;
+      updateButtonState(newVal);
+      refreshPreview();
+    });
   });
-  return select;
+
+  return container;
+}
+
+function openTalentPickerModal(slotIdx, currentVal, onSelect) {
+  const modal = document.createElement("div");
+  modal.style.cssText = "position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 200ms ease; padding: 16px;";
+
+  const content = document.createElement("div");
+  content.style.cssText = "background: #111827; border: 1.5px solid #374151; border-radius: 16px; width: 100%; max-width: 440px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; transform: scale(0.92); transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); padding: 18px;";
+
+  // Title
+  const header = document.createElement("div");
+  header.style.cssText = "display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1f2937; padding-bottom: 12px; margin-bottom: 12px;";
+  
+  const title = document.createElement("h3");
+  title.textContent = t("menu.fieldTalent") + ` #${slotIdx + 1}`;
+  title.style.cssText = "margin: 0; font-size: 16px; font-weight: 700; color: #f3f4f6;";
+  header.appendChild(title);
+
+  const closeBtn = document.createElement("div");
+  closeBtn.innerHTML = "&times;";
+  closeBtn.style.cssText = "font-size: 24px; color: #9ca3af; cursor: pointer; line-height: 1; transition: color 150ms;";
+  closeBtn.addEventListener("mouseenter", () => closeBtn.style.color = "#f3f4f6");
+  closeBtn.addEventListener("mouseleave", () => closeBtn.style.color = "#9ca3af");
+  closeBtn.addEventListener("click", closeModal);
+  header.appendChild(closeBtn);
+
+  content.appendChild(header);
+
+  // List of Talents
+  const list = document.createElement("div");
+  list.style.cssText = "flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;";
+
+  const TALENT_THEMES = {
+    contact:   { color: "#22c55e", bg: "rgba(34, 197, 94, 0.08)", border: "rgba(34, 197, 94, 0.2)" },
+    power:     { color: "#f97316", bg: "rgba(249, 115, 22, 0.08)", border: "rgba(249, 115, 22, 0.2)" },
+    speedster: { color: "#eab308", bg: "rgba(234, 179, 8, 0.08)", border: "rgba(234, 179, 8, 0.2)" },
+    defender:  { color: "#0d9488", bg: "rgba(13, 148, 136, 0.08)", border: "rgba(13, 148, 136, 0.2)" },
+    all_round: { color: "#d97706", bg: "rgba(217, 119, 6, 0.08)", border: "rgba(217, 119, 6, 0.2)" },
+    fireball:  { color: "#a855f7", bg: "rgba(168, 85, 247, 0.08)", border: "rgba(168, 85, 247, 0.2)" },
+    finesse:   { color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)", border: "rgba(6, 182, 212, 0.2)" },
+    breakerz:  { color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)", border: "rgba(99, 102, 241, 0.2)" },
+  };
+
+  for (const [key, talent] of Object.entries(TALENTS)) {
+    const isActive = key === currentVal;
+    const theme = TALENT_THEMES[key] || { color: "#f3f4f6", bg: "#1f2937", border: "#374151" };
+
+    const item = document.createElement("div");
+    item.style.cssText = `display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 1.5px solid ${isActive ? theme.color : "#1f2937"}; border-radius: 10px; background: ${isActive ? theme.bg : "#1f2937"}; cursor: pointer; transition: all 180ms ease-in-out; position: relative; overflow: hidden;`;
+
+    // A subtle left border highlight color bar
+    const bar = document.createElement("div");
+    bar.style.cssText = `position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: ${theme.color};`;
+    item.appendChild(bar);
+
+    const info = document.createElement("div");
+    info.style.cssText = "display: flex; flex-direction: column; margin-left: 8px; flex: 1;";
+
+    const name = document.createElement("span");
+    name.textContent = t("talent." + key);
+    name.style.cssText = `font-weight: 700; font-size: 14.5px; color: ${theme.color}; margin-bottom: 2px;`;
+    info.appendChild(name);
+
+    const desc = document.createElement("span");
+    desc.textContent = describeBoost(talent.boost);
+    desc.style.cssText = "font-size: 11.5px; color: #9ca3af; line-height: 1.3;";
+    info.appendChild(desc);
+
+    item.appendChild(info);
+
+    if (isActive) {
+      const check = document.createElement("span");
+      check.innerHTML = "&#10003;"; // checkmark
+      check.style.cssText = `font-size: 18px; font-weight: bold; color: ${theme.color}; margin-right: 6px;`;
+      item.appendChild(check);
+    }
+
+    item.addEventListener("mouseenter", () => {
+      item.style.borderColor = theme.color;
+      item.style.transform = "translateX(2px)";
+      if (!isActive) item.style.background = "rgba(255,255,255,0.02)";
+    });
+    item.addEventListener("mouseleave", () => {
+      item.style.borderColor = isActive ? theme.color : "#1f2937";
+      item.style.transform = "none";
+      if (!isActive) item.style.background = "#1f2937";
+    });
+
+    item.addEventListener("click", () => {
+      onSelect(key);
+      closeModal();
+    });
+
+    list.appendChild(item);
+  }
+
+  content.appendChild(list);
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+
+  // Trigger animations
+  setTimeout(() => {
+    modal.style.opacity = "1";
+    content.style.transform = "scale(1)";
+  }, 10);
+
+  function closeModal() {
+    modal.style.opacity = "0";
+    content.style.transform = "scale(0.92)";
+    setTimeout(() => {
+      modal.remove();
+    }, 200);
+  }
+
+  // Close when clicking outside content
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
 }
 
 function describeBoost(boost) {

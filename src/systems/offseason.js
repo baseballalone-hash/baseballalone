@@ -17,6 +17,27 @@ const STAT_MIN = 20;
 const OUTCOME_WEIGHTS = { great: 0.20, ok: 0.70, bad: 0.10 };
 
 // ─── 헬퍼 ─────────────────────────────────────────────────────────
+export function getPlayerTalentCategory(player) {
+  const talents = Array.isArray(player?.talents) && player.talents.length > 0
+    ? player.talents
+    : [player?.talent].filter(Boolean);
+
+  const batterTalents = ["contact", "power", "speedster", "defender"];
+  const pitcherTalents = ["fireball", "finesse", "breakerz"];
+
+  let hasBatter = false;
+  let hasPitcher = false;
+
+  for (const t of talents) {
+    if (batterTalents.includes(t)) hasBatter = true;
+    if (pitcherTalents.includes(t)) hasPitcher = true;
+  }
+
+  if (hasBatter && !hasPitcher) return "batter";
+  if (hasPitcher && !hasBatter) return "pitcher";
+  return "balanced";
+}
+
 function bump(player, group, stat, delta) {
   if (player[group] == null || player[group][stat] === undefined) return null;
   const cap = getPlayerStatCap(player, stat);
@@ -83,7 +104,8 @@ export const OFFSEASON_CATEGORIES = {
       // 특훈 base — 핵심 능력치 중 하나 대폭 상승 (+5) 단, 체력 -30 소모
       const ch = [];
       const c1 = staminaBump(player, -30); if (c1) ch.push(c1);
-      const group = Math.random() < 0.5 ? "batter" : "pitcher";
+      const type = getPlayerTalentCategory(player);
+      const group = type === "batter" ? "batter" : (type === "pitcher" ? "pitcher" : (Math.random() < 0.5 ? "batter" : "pitcher"));
       const s = randStat(group);
       const c2 = bump(player, group, s, +5); if (c2) ch.push(c2);
       return ch;
@@ -92,23 +114,40 @@ export const OFFSEASON_CATEGORIES = {
   },
   camp: {
     base(player) {
-      // 전지훈련 base — 최대 체력 +2, 체력 +15, 모든 능력치 +1
+      // 전지훈련 base — 최대 체력 +2, 체력 +15, 모든 능력치 +1 (타자는 타자 +2, 투수는 투수 +2, 밸런스는 투타 +1)
       const ch = [];
       const c1 = maxStaminaBump(player, +2); if (c1) ch.push(c1);
       const c2 = staminaBump(player, +15); if (c2) ch.push(c2);
-      const stats = bumpAllBoth(player, +1);
+      const type = getPlayerTalentCategory(player);
+      let stats = [];
+      if (type === "batter") {
+        stats = bumpAll(player, "batter", +2);
+      } else if (type === "pitcher") {
+        stats = bumpAll(player, "pitcher", +2);
+      } else {
+        stats = bumpAllBoth(player, +1);
+      }
       return [...ch, ...stats];
     },
     pool: ["foreign_coach", "mentor_pitcher", "team_chemistry", "tough_camp", "unfamiliar_env"],
   },
   regular: {
     base(player) {
-      // 일반훈련 base — 체력 -15, 컨디션 +10, 랜덤 타자 1 + 랜덤 투수 1 능력치 +2
+      // 일반훈련 base — 체력 -15, 컨디션 +10, 랜덤 타자 1 + 랜덤 투수 1 능력치 +2 (타자는 타자 랜덤 2, 투수는 투수 랜덤 2, 밸런스는 타자 1 + 투수 1)
       const ch = [];
       const c1 = staminaBump(player, -15); if (c1) ch.push(c1);
       const c2 = conditionBump(player, +10); if (c2) ch.push(c2);
-      const sb = randStat("batter");  const c3 = bump(player, "batter",  sb, +2); if (c3) ch.push(c3);
-      const sp = randStat("pitcher"); const c4 = bump(player, "pitcher", sp, +2); if (c4) ch.push(c4);
+      const type = getPlayerTalentCategory(player);
+      if (type === "batter") {
+        const sb1 = randStat("batter"); const c3 = bump(player, "batter", sb1, +2); if (c3) ch.push(c3);
+        const sb2 = randStat("batter"); const c4 = bump(player, "batter", sb2, +2); if (c4) ch.push(c4);
+      } else if (type === "pitcher") {
+        const sp1 = randStat("pitcher"); const c3 = bump(player, "pitcher", sp1, +2); if (c3) ch.push(c3);
+        const sp2 = randStat("pitcher"); const c4 = bump(player, "pitcher", sp2, +2); if (c4) ch.push(c4);
+      } else {
+        const sb = randStat("batter");  const c3 = bump(player, "batter",  sb, +2); if (c3) ch.push(c3);
+        const sp = randStat("pitcher"); const c4 = bump(player, "pitcher", sp, +2); if (c4) ch.push(c4);
+      }
       return ch;
     },
     pool: ["new_technique", "rival", "coach_advice", "routine_drill", "night_training"],
@@ -202,27 +241,56 @@ export const EVENTS = {
     category: "intense",
     great: (p) => {
       const ch = [];
-      const c1 = bumpCap(p, "pitcher", "mental", +2); if (c1) ch.push(c1);
-      const c2 = bumpCap(p, "pitcher", "stamina", +2); if (c2) ch.push(c2);
-      const stats = bumpAllBoth(p, +3);
-      return [...ch, ...c1 ? [c1] : [], ...c2 ? [c2] : [], ...stats];
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") {
+        const c1 = bumpCap(p, "batter", "contact", +2); if (c1) ch.push(c1);
+        const c2 = bumpCap(p, "batter", "power", +2); if (c2) ch.push(c2);
+        const stats = bumpAll(p, "batter", +6);
+        return [...ch, ...c1 ? [c1] : [], ...c2 ? [c2] : [], ...stats];
+      } else if (type === "pitcher") {
+        const c1 = bumpCap(p, "pitcher", "mental", +2); if (c1) ch.push(c1);
+        const c2 = bumpCap(p, "pitcher", "stamina", +2); if (c2) ch.push(c2);
+        const stats = bumpAll(p, "pitcher", +6);
+        return [...ch, ...c1 ? [c1] : [], ...c2 ? [c2] : [], ...stats];
+      } else {
+        const c1 = bumpCap(p, "pitcher", "mental", +2); if (c1) ch.push(c1);
+        const c2 = bumpCap(p, "pitcher", "stamina", +2); if (c2) ch.push(c2);
+        const stats = bumpAllBoth(p, +3);
+        return [...ch, ...c1 ? [c1] : [], ...c2 ? [c2] : [], ...stats];
+      }
     },
-    ok:    (p) => bumpAllBoth(p, +1),
-    bad:   (p) => bumpAllBoth(p, -2),
+    ok: (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpAll(p, "batter", +2);
+      if (type === "pitcher") return bumpAll(p, "pitcher", +2);
+      return bumpAllBoth(p, +1);
+    },
+    bad: (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpAll(p, "batter", -4);
+      if (type === "pitcher") return bumpAll(p, "pitcher", -4);
+      return bumpAllBoth(p, -2);
+    },
   },
   new_form: {
     category: "intense",
     great: (p) => {
-      const group = Math.random() < 0.5 ? "batter" : "pitcher";
+      const type = getPlayerTalentCategory(p);
+      const group = type === "batter" ? "batter" : (type === "pitcher" ? "pitcher" : (Math.random() < 0.5 ? "batter" : "pitcher"));
       const s = randStat(group);
       const ch = [];
       const c1 = bumpCap(p, group, s, +2); if (c1) ch.push(c1);
       const stats = bumpMany(p, [[group, s, +10]]);
       return [...ch, ...stats];
     },
-    ok: (p) => bumpMany(p, [["pitcher","mental",+3]]),
+    ok: (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "contact", +3]]);
+      return bumpMany(p, [["pitcher", "mental", +3]]);
+    },
     bad: (p) => {
-      const group = Math.random() < 0.5 ? "batter" : "pitcher";
+      const type = getPlayerTalentCategory(p);
+      const group = type === "batter" ? "batter" : (type === "pitcher" ? "pitcher" : (Math.random() < 0.5 ? "batter" : "pitcher"));
       const s = randStat(group);
       return bumpMany(p, [[group, s, -4]]);
     },
@@ -243,30 +311,34 @@ export const EVENTS = {
       const stats = bumpAll(p, "batter", +1);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-3]]),
+    bad:   (p) => bumpMany(p, [["pitcher", "mental", -3]]),
   },
   mentor_pitcher: {
     category: "camp",
     great: (p) => {
       const ch = [];
       const c1 = maxStaminaBump(p, +3); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+8],["pitcher","control",+6],["pitcher","breaking",+4]]);
+      const stats = bumpMany(p, [["pitcher", "mental", +8], ["pitcher", "control", +6], ["pitcher", "breaking", +4]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = maxStaminaBump(p, +1); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+3]]);
+      const stats = bumpMany(p, [["pitcher", "mental", +3]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-2]]),
+    bad:   (p) => bumpMany(p, [["pitcher", "mental", -2]]),
   },
   team_chemistry: {
     category: "camp",
     great: (p) => {
       const ch = [];
       const c1 = maxStaminaBump(p, +3); if (c1) ch.push(c1);
-      const stats = bumpAllBoth(p, +2);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpAll(p, "batter", +4);
+      else if (type === "pitcher") stats = bumpAll(p, "pitcher", +4);
+      else stats = bumpAllBoth(p, +2);
       const f = fameBump(p, +5);
       return [...ch, ...stats, f];
     },
@@ -276,46 +348,74 @@ export const EVENTS = {
       const f = fameBump(p, +2);
       return [...ch, f];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-3]]),
+    bad:   (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "contact", -3]]);
+      return bumpMany(p, [["pitcher", "mental", -3]]);
+    },
   },
   tough_camp: {
     category: "camp",
     great: (p) => {
       const ch = [];
       const c1 = maxStaminaBump(p, +5); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","stamina",+8],["batter","speed",+5]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "speed", +8], ["batter", "defense", +5]]);
+      else if (type === "pitcher") stats = bumpMany(p, [["pitcher", "stamina", +8], ["pitcher", "velocity", +5]]);
+      else stats = bumpMany(p, [["pitcher", "stamina", +8], ["batter", "speed", +5]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = maxStaminaBump(p, +2); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","stamina",+2]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "speed", +2]]);
+      else stats = bumpMany(p, [["pitcher", "stamina", +2]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => { applyInjury(p, 0.80); return bumpMany(p, [["batter","speed",-3]]); },
+    bad:   (p) => {
+      applyInjury(p, 0.80);
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "speed", -3]]);
+      return bumpMany(p, [["pitcher", "stamina", -3]]);
+    },
   },
   unfamiliar_env: {
     category: "camp",
     great: (p) => {
       const ch = [];
       const c1 = maxStaminaBump(p, +3); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+6],["batter","eye",+4]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "eye", +6], ["batter", "contact", +4]]);
+      else if (type === "pitcher") stats = bumpMany(p, [["pitcher", "mental", +6], ["pitcher", "control", +4]]);
+      else stats = bumpMany(p, [["pitcher", "mental", +6], ["batter", "eye", +4]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = maxStaminaBump(p, +1); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+1]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "eye", +1]]);
+      else stats = bumpMany(p, [["pitcher", "mental", +1]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-4]]),
+    bad:   (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "eye", -4]]);
+      return bumpMany(p, [["pitcher", "mental", -4]]);
+    },
   },
 
   // ── 일반훈련 ──
   new_technique: {
     category: "regular",
     great: (p) => {
-      const group = Math.random() < 0.5 ? "batter" : "pitcher";
+      const type = getPlayerTalentCategory(p);
+      const group = type === "batter" ? "batter" : (type === "pitcher" ? "pitcher" : (Math.random() < 0.5 ? "batter" : "pitcher"));
       const s = randStat(group);
       const ch = [];
       const c1 = conditionBump(p, +15); if (c1) ch.push(c1);
@@ -323,78 +423,128 @@ export const EVENTS = {
       return [...ch, ...stats];
     },
     ok: (p) => {
-      const group = Math.random() < 0.5 ? "batter" : "pitcher";
+      const type = getPlayerTalentCategory(p);
+      const group = type === "batter" ? "batter" : (type === "pitcher" ? "pitcher" : (Math.random() < 0.5 ? "batter" : "pitcher"));
       const s = randStat(group);
       const ch = [];
       const c1 = conditionBump(p, +5); if (c1) ch.push(c1);
       const stats = bumpMany(p, [[group, s, +2]]);
       return [...ch, ...stats];
     },
-    bad: (p) => bumpMany(p, [["pitcher","mental",-2]]),
+    bad: (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "contact", -2]]);
+      return bumpMany(p, [["pitcher", "mental", -2]]);
+    },
   },
   rival: {
     category: "regular",
     great: (p) => {
       const ch = [];
       const c1 = conditionBump(p, +15); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+6],["batter","contact",+4]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "contact", +6], ["batter", "power", +4]]);
+      else if (type === "pitcher") stats = bumpMany(p, [["pitcher", "mental", +6], ["pitcher", "control", +4]]);
+      else stats = bumpMany(p, [["pitcher", "mental", +6], ["batter", "contact", +4]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = conditionBump(p, +5); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+2]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "contact", +2]]);
+      else stats = bumpMany(p, [["pitcher", "mental", +2]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-3]]),
+    bad:   (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "contact", -3]]);
+      return bumpMany(p, [["pitcher", "mental", -3]]);
+    },
   },
   coach_advice: {
     category: "regular",
     great: (p) => {
       const ch = [];
       const c1 = conditionBump(p, +15); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","control",+7],["batter","eye",+7]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "eye", +7], ["batter", "contact", +7]]);
+      else if (type === "pitcher") stats = bumpMany(p, [["pitcher", "control", +7], ["pitcher", "breaking", +7]]);
+      else stats = bumpMany(p, [["pitcher", "control", +7], ["batter", "eye", +7]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = conditionBump(p, +5); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","control",+2],["batter","eye",+2]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "eye", +4]]);
+      else if (type === "pitcher") stats = bumpMany(p, [["pitcher", "control", +4]]);
+      else stats = bumpMany(p, [["pitcher", "control", +2], ["batter", "eye", +2]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-2]]),
+    bad:   (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "eye", -2]]);
+      return bumpMany(p, [["pitcher", "mental", -2]]);
+    },
   },
   routine_drill: {
     category: "regular",
     great: (p) => {
       const ch = [];
       const c1 = conditionBump(p, +20); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","stamina",+5],["batter","defense",+4]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "defense", +5], ["batter", "speed", +4]]);
+      else if (type === "pitcher") stats = bumpMany(p, [["pitcher", "stamina", +5], ["pitcher", "mental", +4]]);
+      else stats = bumpMany(p, [["pitcher", "stamina", +5], ["batter", "defense", +4]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = conditionBump(p, +5); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","stamina",+2]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "defense", +2]]);
+      else stats = bumpMany(p, [["pitcher", "stamina", +2]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-3]]),
+    bad:   (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "defense", -3]]);
+      return bumpMany(p, [["pitcher", "mental", -3]]);
+    },
   },
   night_training: {
     category: "regular",
     great: (p) => {
       const ch = [];
       const c1 = conditionBump(p, +15); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["batter","power",+6],["pitcher","velocity",+5]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "power", +6], ["batter", "contact", +5]]);
+      else if (type === "pitcher") stats = bumpMany(p, [["pitcher", "velocity", +6], ["pitcher", "control", +5]]);
+      else stats = bumpMany(p, [["batter", "power", +6], ["pitcher", "velocity", +5]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = conditionBump(p, +5); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["batter","power",+2]]);
+      const type = getPlayerTalentCategory(p);
+      let stats = [];
+      if (type === "batter") stats = bumpMany(p, [["batter", "power", +2]]);
+      else stats = bumpMany(p, [["pitcher", "velocity", +2]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","stamina",-3]]),
+    bad:   (p) => {
+      const type = getPlayerTalentCategory(p);
+      if (type === "batter") return bumpMany(p, [["batter", "power", -3]]);
+      return bumpMany(p, [["pitcher", "stamina", -3]]);
+    },
   },
 
   // ── 휴식 ──
@@ -403,8 +553,9 @@ export const EVENTS = {
     great: (p) => {
       const ch = [];
       const c1 = healInjury(p, 99); if (c1) ch.push(c1);
-      const c2 = bumpMany(p, [["pitcher","mental",+10]]);
-      const group = Math.random() < 0.5 ? "batter" : "pitcher";
+      const c2 = bumpMany(p, [["pitcher", "mental", +10]]);
+      const type = getPlayerTalentCategory(p);
+      const group = type === "batter" ? "batter" : (type === "pitcher" ? "pitcher" : (Math.random() < 0.5 ? "batter" : "pitcher"));
       const s = randStat(group);
       const stats = bumpMany(p, [[group, s, +5]]);
       return [...ch, ...c2, ...stats];
@@ -412,7 +563,7 @@ export const EVENTS = {
     ok:  (p) => {
       const ch = [];
       const c1 = healInjury(p, 1); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+3]]);
+      const stats = bumpMany(p, [["pitcher", "mental", +3]]);
       return [...ch, ...stats];
     },
     bad: (p) => bumpAllBoth(p, -2),
@@ -422,23 +573,23 @@ export const EVENTS = {
     great: (p) => {
       const ch = [];
       const c1 = healInjury(p, 99); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+8],["batter","eye",+4]]);
+      const stats = bumpMany(p, [["pitcher", "mental", +8], ["batter", "eye", +4]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = healInjury(p, 1); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+2]]);
+      const stats = bumpMany(p, [["pitcher", "mental", +2]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-2]]),
+    bad:   (p) => bumpMany(p, [["pitcher", "mental", -2]]),
   },
   hobby: {
     category: "rest",
     great: (p) => {
       const ch = [];
       const c1 = fameBump(p, +8);
-      const stats = bumpMany(p, [["pitcher","mental",+8]]);
+      const stats = bumpMany(p, [["pitcher", "mental", +8]]);
       return [c1, ...stats];
     },
     ok:    (p) => [fameBump(p, +3)],
@@ -449,29 +600,29 @@ export const EVENTS = {
     great: (p) => {
       const ch = [];
       const c1 = conditionBump(p, +30); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","mental",+8],["pitcher","stamina",+5],["batter","eye",+3]]);
+      const stats = bumpMany(p, [["pitcher", "mental", +8], ["pitcher", "stamina", +5], ["batter", "eye", +3]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = conditionBump(p, +10); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","stamina",+2]]);
+      const stats = bumpMany(p, [["pitcher", "stamina", +2]]);
       return [...ch, ...stats];
     },
-    bad:   (p) => bumpMany(p, [["pitcher","stamina",-3]]),
+    bad:   (p) => bumpMany(p, [["pitcher", "stamina", -3]]),
   },
   quiet_rest: {
     category: "rest",
     great: (p) => {
       const ch = [];
       const c1 = staminaBump(p, +100); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","stamina",+8],["pitcher","mental",+6]]);
+      const stats = bumpMany(p, [["pitcher", "stamina", +8], ["pitcher", "mental", +6]]);
       return [...ch, ...stats];
     },
     ok:    (p) => {
       const ch = [];
       const c1 = staminaBump(p, +20); if (c1) ch.push(c1);
-      const stats = bumpMany(p, [["pitcher","stamina",+2]]);
+      const stats = bumpMany(p, [["pitcher", "stamina", +2]]);
       return [...ch, ...stats];
     },
     bad:   (p) => bumpAllBoth(p, -1),
@@ -489,7 +640,7 @@ export const EVENTS = {
       p.militaryExempt = { reason: "olympics_bronze", year: state.gameDate?.year ?? null };
       return [...bumpAllBoth(p, +2), fameBump(p, +15)];
     },
-    bad: (p) => bumpMany(p, [["pitcher","mental",-3]]),
+    bad: (p) => bumpMany(p, [["pitcher", "mental", -3]]),
   },
   // 아시안게임: 금메달이면 병역 면제. great=금(면제) / ok=은·동 / bad=4위 이하.
   asian_games_run: {
@@ -498,22 +649,22 @@ export const EVENTS = {
       p.militaryExempt = { reason: "asian_games_gold", year: state.gameDate?.year ?? null };
       return [...bumpAllBoth(p, +3), fameBump(p, +25)];
     },
-    ok:  (p) => [...bumpMany(p, [["batter","eye",+2],["pitcher","mental",+3]]), fameBump(p, +10)],
-    bad: (p) => bumpMany(p, [["pitcher","mental",-3]]),
+    ok:  (p) => [...bumpMany(p, [["batter", "eye", +2], ["pitcher", "mental", +3]]), fameBump(p, +10)],
+    bad: (p) => bumpMany(p, [["pitcher", "mental", -3]]),
   },
   // WBC: 면제 X, 명성/멘탈 위주
   wbc_run: {
     category: "intl_tournament",
     great: (p) => [...bumpAllBoth(p, +3), fameBump(p, +20)],
-    ok:    (p) => [fameBump(p, +8), ...bumpMany(p, [["pitcher","mental",+2]])],
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-2]]),
+    ok:    (p) => [fameBump(p, +8), ...bumpMany(p, [["pitcher", "mental", +2]])],
+    bad:   (p) => bumpMany(p, [["pitcher", "mental", -2]]),
   },
   // 프리미어12: 면제 X
   premier12_run: {
     category: "intl_tournament",
     great: (p) => [...bumpAllBoth(p, +2), fameBump(p, +15)],
-    ok:    (p) => [fameBump(p, +6), ...bumpMany(p, [["pitcher","mental",+1]])],
-    bad:   (p) => bumpMany(p, [["pitcher","mental",-2]]),
+    ok:    (p) => [fameBump(p, +6), ...bumpMany(p, [["pitcher", "mental", +1]])],
+    bad:   (p) => bumpMany(p, [["pitcher", "mental", -2]]),
   },
 
   // ── 청소년 세계대회 (youth_worldcup) — 고3 시즌 종료 후에만 노출 ──
@@ -522,7 +673,7 @@ export const EVENTS = {
     // 우승 — 모든 능력치 + 큰 명성
     great: (p) => {
       const ch = [];
-      for (const c of bumpAll(p, "batter",  +4)) ch.push(c);
+      for (const c of bumpAll(p, "batter", +4)) ch.push(c);
       for (const c of bumpAll(p, "pitcher", +3)) ch.push(c);
       ch.push(fameBump(p, +15));
       return ch;
@@ -531,14 +682,14 @@ export const EVENTS = {
     ok: (p) => {
       const ch = [];
       const c1 = bump(p, "pitcher", "mental", +5); if (c1) ch.push(c1);
-      const c2 = bump(p, "batter",  "eye",    +3); if (c2) ch.push(c2);
+      const c2 = bump(p, "batter", "eye", +3); if (c2) ch.push(c2);
       ch.push(fameBump(p, +6));
       return ch;
     },
     // 예선 탈락
     bad: (p) => {
       const ch = [];
-      const c1 = bump(p, "pitcher", "mental",  -4); if (c1) ch.push(c1);
+      const c1 = bump(p, "pitcher", "mental", -4); if (c1) ch.push(c1);
       const c2 = bump(p, "pitcher", "stamina", -2); if (c2) ch.push(c2);
       return ch;
     },
@@ -591,7 +742,14 @@ export function applyCategoryAndPickEvent(player, categoryKey) {
     eventKey = TOURNAMENT_EVENT_MAP[player.pendingTournament.key] ?? "wbc_run";
     player.pendingTournament = null;
   } else {
-    eventKey = cat.pool[Math.floor(Math.random() * cat.pool.length)];
+    const type = getPlayerTalentCategory(player);
+    let pool = [...cat.pool];
+    if (type === "batter") {
+      pool = pool.filter(e => e !== "mad_scientist_pitch" && e !== "secret_pitch" && e !== "mentor_pitcher");
+    } else if (type === "pitcher") {
+      pool = pool.filter(e => e !== "mad_scientist_bat" && e !== "foreign_coach");
+    }
+    eventKey = pool[Math.floor(Math.random() * pool.length)];
   }
   return { baseChanges, eventKey };
 }
