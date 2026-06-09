@@ -163,6 +163,8 @@ export function teamFame(team) {
 
 export function getMLBOffers(player) {
   if (!player || player.stage !== "pro1") return [];
+  // 만 32세 초과 시 오퍼 차단 (33세 이상부터는 노쇠화 등으로 신규 진출 불가)
+  if ((player.age ?? 0) > 32) return [];
 
   // 성적 기준 체크 (국내리그를 씹어먹고 있어야만 MLB 진출 오퍼 자격 부여)
   const ss = player.seasonStats;
